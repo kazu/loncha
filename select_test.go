@@ -134,6 +134,18 @@ func TestFilter(t *testing.T) {
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 }
 
+func TestDelete(t *testing.T) {
+	nSlice := Elements(MakeSliceSample())
+	size := len(nSlice)
+	Delete(&nSlice, func(i int) bool {
+		return nSlice[i].ID == 555
+	})
+
+	assert.True(t, nSlice[0].ID != 555, nSlice)
+	assert.True(t, len(nSlice) < size, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+}
+
 func TestSelect(t *testing.T) {
 	slice := MakeSliceSample()
 

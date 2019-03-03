@@ -54,7 +54,22 @@ func Filter(slice interface{}, funcs ...CondFunc) error {
 	return nil
 }
 
+func Delete(slice interface{}, funcs ...CondFunc) error {
+	rv, err := slice2Reflect(slice)
+	if err != nil {
+		return err
+	}
+
+	innterFilter(rv, false, funcs...)
+	return nil
+}
+
 func filter(pRv reflect.Value, funcs ...CondFunc) {
+
+	innterFilter(pRv, true, funcs...)
+}
+
+func innterFilter(pRv reflect.Value, keep bool, funcs ...CondFunc) {
 
 	rv := pRv.Elem()
 
@@ -67,10 +82,10 @@ func filter(pRv reflect.Value, funcs ...CondFunc) {
 	newIdx := 0
 
 	for i := 0; i < length; i++ {
-		allok := true
+		allok := (true == keep)
 		for _, f := range funcs {
 			if !f(i) {
-				allok = false
+				allok = (false == keep)
 			}
 		}
 
