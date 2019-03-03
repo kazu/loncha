@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 	"testing"
+
+	"github.com/thoas/go-funk"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -15,7 +18,7 @@ type Element struct {
 }
 
 const (
-	CREATE_SLICE_MAX int = 1000
+	CREATE_SLICE_MAX int = 10000
 )
 
 func MakeSliceSample() (slice []Element) {
@@ -111,26 +114,26 @@ func TestWhere(t *testing.T) {
 
 func TestFind(t *testing.T) {
 	nSlice := Elements(MakeSliceSample())
-
+	id := nSlice[50].ID
 	data, err := Find(&nSlice, func(i int) bool {
-		return nSlice[i].ID == 555
+		return nSlice[i].ID == id
 	})
-	elm := data.(Element)
 
 	assert.NoError(t, err)
-	assert.True(t, elm.ID == 555, elm)
+	elm := data.(Element)
+	assert.True(t, elm.ID == id, elm)
 
 }
 
 func TestFilter(t *testing.T) {
 	nSlice := Elements(MakeSliceSample())
-
+	id := nSlice[50].ID
 	Filter(&nSlice, func(i int) bool {
-		return nSlice[i].ID == 555
+		return nSlice[i].ID == id
 	})
 
-	assert.True(t, nSlice[0].ID == 555, nSlice)
-	assert.True(t, len(nSlice) < 100, len(nSlice))
+	assert.True(t, nSlice[0].ID == id, nSlice)
+	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 }
 
@@ -142,6 +145,21 @@ func TestDelete(t *testing.T) {
 	})
 
 	assert.True(t, nSlice[0].ID != 555, nSlice)
+	assert.True(t, len(nSlice) < size, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+}
+
+func TestUniq(t *testing.T) {
+	nSlice := Elements(MakeSliceSample())
+	nSlice = append(nSlice, Element{ID: nSlice[0].ID})
+	size := len(nSlice)
+
+	fn := func(i int) interface{} { return i }
+	assert.NotEqual(t, fn(1), fn(2))
+	Uniq(&nSlice, func(i int) interface{} {
+		return nSlice[i].ID
+	})
+
 	assert.True(t, len(nSlice) < size, len(nSlice))
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 }
@@ -223,6 +241,106 @@ func BenchmarkFilter(b *testing.B) {
 		}
 	})
 
+}
+
+// BenchmarkUniq/lonacha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
+// BenchmarkUniq/lonacha.UniqWithSort-16 	    			1000	   2237924 ns/op	     256 B/op	       7 allocs/op
+// BenchmarkUniq/lonacha.UniqWithSort(sort)-16         	    1000	    260283 ns/op	     144 B/op	       4 allocs/op
+// BenchmarkUniq/hand_Uniq-16                          	    1000	    427765 ns/op	  442642 B/op	       8 allocs/op
+// BenchmarkUniq/hand_Uniq_iface-16                    	    1000	    808895 ns/op	  632225 B/op	    6322 allocs/op
+// BenchmarkUniq/go-funk.Uniq-16                       	    1000	   1708396 ns/op	  655968 B/op	   10004 allocs/op
+func BenchmarkUniq(b *testing.B) {
+
+	orig := MakeSliceSample()
+
+	b.ResetTimer()
+	b.Run("lonacha.Uniq", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			Uniq(&objs, func(i int) interface{} {
+				return objs[i].ID
+			})
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("lonacha.UniqWithSort", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			UniqWithSort(&objs, func(i, j int) bool {
+				return objs[i].ID < objs[j].ID
+			})
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("lonacha.UniqWithSort(sort)", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			sort.Slice(objs, func(i, j int) bool {
+				return objs[i].ID < objs[j].ID
+			})
+			b.StartTimer()
+			UniqWithSort(&objs, func(i, j int) bool {
+				return objs[i].ID < objs[j].ID
+			})
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("hand Uniq", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			exists := make(map[int]bool, len(objs))
+			result := make([]Element, 0, len(orig))
+			for idx, _ := range objs {
+				if !exists[objs[idx].ID] {
+					exists[objs[idx].ID] = true
+					result = append(result, orig[idx])
+				}
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("hand Uniq iface", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			exists := make(map[interface{}]bool, len(objs))
+			result := make([]Element, 0, len(orig))
+			for idx, _ := range objs {
+				if !exists[objs[idx].ID] {
+					exists[objs[idx].ID] = true
+					result = append(result, orig[idx])
+				}
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("go-funk.Uniq", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			funk.Uniq(objs)
+		}
+	})
 }
 
 func BenchmarkSelect(b *testing.B) {

@@ -7,9 +7,9 @@
     条件にあう最初ものを返す
 - [ ] lonacha.Contains　
     含まれているか?
-- [ ] lonacha.Delete 
+- [x] lonacha.Delete 
     条件にあったデータを消す
-- [ ] lonacha.Uniq 重複削除
+- [X] lonacha.Uniq 重複削除
 - [x] lonacha.IndexOf index を取る
 - [ ] lonacha.Shuffle 
 - [ ] lonacha.Step()  []int を作る。
