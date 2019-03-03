@@ -7,9 +7,11 @@ import (
 
 var (
 	ERR_SLICE_TYPE error = errors.New("parameter must be pointer of slice")
+	ERR_NOT_FOUND  error = errors.New("data is not found")
 )
 
 type CondFunc func(idx int) bool
+type CompareFunc func(i, j int) bool
 
 func slice2Reflect(slice interface{}) (reflect.Value, error) {
 	rv := reflect.ValueOf(slice)

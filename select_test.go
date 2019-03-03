@@ -109,6 +109,19 @@ func TestWhere(t *testing.T) {
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 }
 
+func TestFind(t *testing.T) {
+	nSlice := Elements(MakeSliceSample())
+
+	data, err := Find(&nSlice, func(i int) bool {
+		return nSlice[i].ID == 555
+	})
+	elm := data.(Element)
+
+	assert.NoError(t, err)
+	assert.True(t, elm.ID == 555, elm)
+
+}
+
 func TestFilter(t *testing.T) {
 	nSlice := Elements(MakeSliceSample())
 
@@ -247,4 +260,50 @@ func BenchmarkSelect(b *testing.B) {
 		}
 	})
 
+}
+
+type TestInterface interface {
+	Inc() int
+	Name() string
+}
+
+type TestObject struct {
+	Cnt  int
+	name string
+}
+
+func (o TestObject) Inc() int {
+	o.Cnt++
+	return o.Cnt
+}
+
+func (o TestObject) Name() string {
+	return o.name
+}
+
+func BenchmarkCall(b *testing.B) {
+
+	b.ResetTimer()
+	b.Run("struct call", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			object := TestObject{Cnt: 0, name: "Test"}
+			b.StartTimer()
+			for j := 0; j < 100000; j++ {
+				object.Inc()
+			}
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("interface call", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			object := TestInterface(TestObject{Cnt: 0, name: "Test"})
+			b.StartTimer()
+			for j := 0; j < 100000; j++ {
+				object.Inc()
+			}
+		}
+	})
 }
