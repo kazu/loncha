@@ -24,10 +24,11 @@ func (sw *ContainerListWriter) Name() string {
 }
 
 func (sw *ContainerListWriter) Imports(t typewriter.Type) (result []typewriter.ImportSpec) {
-	// none
-	return result
+	return []typewriter.ImportSpec{
+		{Path: "unsafe"},
+		{Path: "github.com/kazu/lonacha/list_head"},
+	}
 }
-
 func (sw *ContainerListWriter) Write(w io.Writer, t typewriter.Type) error {
 	tag, found := t.FindTag(sw)
 
