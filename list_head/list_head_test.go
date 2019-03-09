@@ -66,7 +66,7 @@ type Hoge struct {
 
 func NewHogeWithList(h *Hoge) *Hoge {
 	h.Init()
-	return
+	return h
 }
 
 func (d *Hoge) Init() {

@@ -20,7 +20,7 @@ func NewContainerListWriter() *ContainerListWriter {
 }
 
 func (sw *ContainerListWriter) Name() string {
-	return "linkedlist"
+	return "ContainerList"
 }
 
 func (sw *ContainerListWriter) Imports(t typewriter.Type) (result []typewriter.ImportSpec) {
