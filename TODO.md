@@ -17,3 +17,7 @@
     slice からslice を変換
 - [ ] lonacha.Parallel 
 - [X] sql like function(gen を使う)
+
+
+## lonacha.countaer_list
+

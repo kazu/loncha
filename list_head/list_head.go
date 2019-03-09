@@ -48,3 +48,38 @@ func (l *ListHead) Empty() bool {
 func (l *ListHead) IsLast() bool {
 	return l.next == l
 }
+
+func (l *ListHead) IsFirst() bool {
+	return l.prev == l
+}
+
+func (l *ListHead) Len() (cnt int) {
+
+	cnt = 0
+	for head := l; head.next != l; head = head.next {
+		cnt++
+	}
+	return cnt
+}
+
+func (l *ListHead) Front() *ListHead {
+
+	for head := l; head.prev != l; head = head.prev {
+		if head.IsFirst() {
+			return head
+		}
+	}
+	panic("front not found")
+	return nil
+}
+
+func (l *ListHead) Back() *ListHead {
+
+	for head := l; head.next != l; head = head.next {
+		if head.IsLast() {
+			return head
+		}
+	}
+	panic("back not found")
+	return nil
+}
