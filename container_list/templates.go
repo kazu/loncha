@@ -40,10 +40,9 @@ func (d *{{.Name}}) Len() int {
 }
 
 func (d *{{.Name}}) Add(n *{{.Name}})  *{{.Name}} {
-	d.ListHead.Add(n.ListHead)
+	d.ListHead.Add(&n.ListHead)
 	return n
 }
-
 
 func (d *{{.Name}}) Delete() *{{.Name}} {
 	ptr := d.ListHead.Delete()
@@ -84,14 +83,14 @@ func (l *{{.Name}}) PushBack(v *{{.Name}}) *{{.Name}} {
 
 // InsertBefore inserts a new element e with value v immediately before mark and returns e.
 // If mark is not an element of l, the list is not modified.
-func (l *{{.Name}}) InsertBefore(v {{.Pointer}}{{.Name}}) *{{.Name}} {
+func (l *{{.Name}}) InsertBefore(v *{{.Name}}) *{{.Name}} {
 	l.Prev().Add(v)
 	return v
 }
 
 // InsertAfter inserts a new element e with value v immediately after mark and returns e.
 // If mark is not an element of l, the list is not modified.
-func (l *{{.Name}}) InsertAfter(v {{.Pointer}}{{.Name}}) *{{.Name}} {
+func (l *{{.Name}}) InsertAfter(v *{{.Name}}) *{{.Name}} {
 	l.Next().Add(v)
 	return v
 }
@@ -99,12 +98,12 @@ func (l *{{.Name}}) InsertAfter(v {{.Pointer}}{{.Name}}) *{{.Name}} {
 
 // MoveToFront moves element e to the front of list l.
 // If e is not an element of l, the list is not modified.
-func (l *{{.Name}}) MoveToFront(v {{.Pointer}}{{.Name}}) *{{.Name}} {
+func (l *{{.Name}}) MoveToFront(v *{{.Name}}) *{{.Name}} {
 	v.Remove()
 	return l.PushFront(v)
 }
 
-func (l *{{.Name}}) MoveToBack(v {{.Pointer}}{{.Name}}) *{{.Name}} {
+func (l *{{.Name}}) MoveToBack(v *{{.Name}}) *{{.Name}} {
 	v.Remove()
 	return l.PushBack(v)
 }
@@ -112,7 +111,7 @@ func (l *{{.Name}}) MoveToBack(v {{.Pointer}}{{.Name}}) *{{.Name}} {
 
 // MoveBefore moves element e to its new position before mark.
 // If e or mark is not an element of l, or e == mark, the list is not modified.
-func (l *{{.Name}}) MoveBefore(v {{.Pointer}}{{.Name}}) *{{.Name}} {
+func (l *{{.Name}}) MoveBefore(v *{{.Name}}) *{{.Name}} {
 	v.Remove()
 	l.Prev().Add(v)
 	return v
@@ -120,7 +119,7 @@ func (l *{{.Name}}) MoveBefore(v {{.Pointer}}{{.Name}}) *{{.Name}} {
 
 // MoveAfter moves element e to its new position after mark.
 // If e is not an element of l, or e == mark, the list is not modified.
-func (l *{{.Name}}) MoveAfter(v {{.Pointer}}{{.Name}}) *{{.Name}} {
+func (l *{{.Name}}) MoveAfter(v *{{.Name}}) *{{.Name}} {
 	v.Remove()
 	l.Add(v)
 	return v
@@ -131,7 +130,7 @@ func (l *{{.Name}}) PushBackList(other *{{.Name}}) {
 	return 
 }
 
-func (l *{{.Name}}) PushBackList(other *{{.Name}}) {
+func (l *{{.Name}}) PushFrontList(other *{{.Name}}) {
 	other.PushBackList(l)
 	return
 }

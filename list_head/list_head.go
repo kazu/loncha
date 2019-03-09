@@ -25,7 +25,12 @@ func (head *ListHead) Next() *ListHead {
 }
 
 func listAdd(new, prev, next *ListHead) {
-	next.prev, new.next, new.prev, prev.next = new, next, prev, new
+	if prev != next {
+		next.prev, new.next, new.prev, prev.next = new, next, prev, new
+	} else {
+		prev.next, new.prev = new, prev
+	}
+
 }
 
 func (head *ListHead) Add(new *ListHead) {
@@ -56,30 +61,30 @@ func (l *ListHead) IsFirst() bool {
 func (l *ListHead) Len() (cnt int) {
 
 	cnt = 0
-	for head := l; head.next != l; head = head.next {
+	for head := l.Front(); head.next != head; head = head.next {
 		cnt++
 	}
 	return cnt
 }
 
-func (l *ListHead) Front() *ListHead {
+func (l *ListHead) Front() (head *ListHead) {
 
-	for head := l; head.prev != l; head = head.prev {
+	for head = l; head.prev != head; head = head.prev {
 		if head.IsFirst() {
 			return head
 		}
 	}
-	panic("front not found")
-	return nil
+	//panic("front not found")
+	return
 }
 
-func (l *ListHead) Back() *ListHead {
+func (l *ListHead) Back() (head *ListHead) {
 
-	for head := l; head.next != l; head = head.next {
+	for head = l; head.next != head; head = head.next {
 		if head.IsLast() {
 			return head
 		}
 	}
-	panic("back not found")
-	return nil
+	//panic("back not found")
+	return
 }
