@@ -45,3 +45,18 @@ func IndexOf(slice interface{}, fn CondFunc) (int, error) {
 	}
 	return -1, ERR_NOT_FOUND
 }
+
+// Contain get return true which fn condition is true.
+func Contain(slice interface{}, fn CondFunc) bool {
+
+	idx, err := IndexOf(slice, fn)
+	if err != nil {
+		return false
+	}
+	if idx < 0 {
+		return false
+	}
+
+	return true
+
+}

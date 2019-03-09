@@ -437,3 +437,69 @@ func BenchmarkCall(b *testing.B) {
 		}
 	})
 }
+
+func (list PtrElements) Len() int           { return len(list) }
+func (list PtrElements) Swap(i, j int)      { list[i], list[j] = list[j], list[i] }
+func (list PtrElements) Less(i, j int) bool { return list[i].ID < list[j].ID }
+
+// BenchmarkSortPtr/sort.Sort-16         	    1000	   1712284 ns/op	      32 B/op	       1 allocs/op
+// BenchmarkSortPtr/sort.Slice-16        	    2000	   1170132 ns/op	      64 B/op	       2 allocs/op
+
+func BenchmarkSortPtr(b *testing.B) {
+	orig := MakePtrSliceSample()
+
+	b.ResetTimer()
+	b.Run("sort.Sort", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			data := make(PtrElements, len(orig))
+			copy(data, orig)
+			b.StartTimer()
+			sort.Sort(data)
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("sort.Slice", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			data := make([]*Element, len(orig))
+			copy(data, orig)
+			b.StartTimer()
+			sort.Slice(data, func(i, j int) bool { return data[i].ID < data[j].ID })
+		}
+	})
+}
+
+func (list Elements) Len() int           { return len(list) }
+func (list Elements) Swap(i, j int)      { list[i], list[j] = list[j], list[i] }
+func (list Elements) Less(i, j int) bool { return list[i].ID < list[j].ID }
+
+// BenchmarkSort/sort.Sort-16         	    1000	   1648947 ns/op	      34 B/op	       1 allocs/op
+// BenchmarkSort/sort.Slice-16        	    1000	   1973036 ns/op	     112 B/op	       3 allocs/op
+
+func BenchmarkSort(b *testing.B) {
+	orig := MakeSliceSample()
+
+	b.ResetTimer()
+	b.Run("sort.Sort", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			data := make(Elements, len(orig))
+			copy(data, orig)
+			b.StartTimer()
+			sort.Sort(data)
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("sort.Slice", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			data := make([]Element, len(orig))
+			copy(data, orig)
+			b.StartTimer()
+			sort.Slice(data, func(i, j int) bool { return data[i].ID < data[j].ID })
+		}
+	})
+}
