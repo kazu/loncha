@@ -164,6 +164,26 @@ func TestUniq(t *testing.T) {
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 }
 
+func TestUniq2(t *testing.T) {
+	nSlice := Elements(MakeSliceSample())
+	nSlice = append(nSlice, Element{ID: nSlice[0].ID})
+	size := len(nSlice)
+	nSlice2 := make([]Element, len(nSlice))
+	copy(nSlice2, nSlice)
+
+	Uniq2(&nSlice, func(i, j int) bool {
+		return nSlice[i].ID == nSlice[j].ID
+	})
+	Uniq(&nSlice2, func(i int) interface{} {
+		return nSlice2[i].ID
+	})
+
+	assert.True(t, len(nSlice) < size, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+	assert.Equal(t, len(nSlice), len(nSlice2))
+
+}
+
 func TestSelect(t *testing.T) {
 	slice := MakeSliceSample()
 
@@ -264,14 +284,17 @@ func BenchmarkUniq(b *testing.B) {
 	orig := MakeSliceSample()
 
 	b.ResetTimer()
-	b.Run("lonacha.Uniq", func(b *testing.B) {
+	b.Run("lonacha.UniqWithSort(before sort)", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
 			copy(objs, orig)
+			sort.Slice(objs, func(i, j int) bool {
+				return objs[i].ID < objs[j].ID
+			})
 			b.StartTimer()
-			Uniq(&objs, func(i int) interface{} {
-				return objs[i].ID
+			UniqWithSort(&objs, func(i, j int) bool {
+				return objs[i].ID < objs[j].ID
 			})
 		}
 	})
@@ -290,17 +313,26 @@ func BenchmarkUniq(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	b.Run("lonacha.UniqWithSort(sort)", func(b *testing.B) {
+	b.Run("lonacha.Uniq", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
 			copy(objs, orig)
-			sort.Slice(objs, func(i, j int) bool {
-				return objs[i].ID < objs[j].ID
-			})
 			b.StartTimer()
-			UniqWithSort(&objs, func(i, j int) bool {
-				return objs[i].ID < objs[j].ID
+			Uniq(&objs, func(i int) interface{} {
+				return objs[i].ID
+			})
+		}
+	})
+
+	b.Run("lonacha.Uniq2", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			Uniq2(&objs, func(i, j int) bool {
+				return objs[i].ID == objs[j].ID
 			})
 		}
 	})

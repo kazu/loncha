@@ -40,6 +40,34 @@ func Uniq(slice interface{}, fn IdentFn) error {
 	return err
 }
 
+// Uniq2 is deduplicate using fn . if slice is not pointer of slice or empty, return error
+func Uniq2(slice interface{}, fn CompareFunc) error {
+
+	pRv, err := slice2Reflect(slice)
+	if err != nil {
+		return err
+	}
+	n := pRv.Elem().Len()
+
+	swap := reflect.Swapper(pRv.Elem().Interface())
+
+	uniqCnt := int(1)
+
+	for i := 0; i < n; i++ {
+		for j := 0; j < uniqCnt; j++ {
+			if fn(i, j) {
+				goto SKIP
+			}
+		}
+		swap(uniqCnt, i)
+		uniqCnt++
+	SKIP:
+	}
+	pRv.Elem().SetLen(uniqCnt)
+
+	return err
+}
+
 // UniqWithSort is deduplicating using fn, sorting before dedup. if slice is not pointer of slice or empty, return error
 func UniqWithSort(slice interface{}, fn CompareFunc) (int, error) {
 
