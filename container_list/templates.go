@@ -32,12 +32,18 @@ func (d *{{.Name}}) Prev() *{{.Name}} {
 // New returns an initialized list.
 func New{{.Name}}List(h *{{.Name}}) *{{.Name}} {
 	h.Init()
-	return
+	return h
 }
 
 func (d *{{.Name}}) Len() int {
 	return d.ListHead.Len()
 }
+
+func (d *{{.Name}}) Add(n *{{.Name}})  *{{.Name}} {
+	d.ListHead.Add(n.ListHead)
+	return n
+}
+
 
 func (d *{{.Name}}) Delete() *{{.Name}} {
 	ptr := d.ListHead.Delete()
