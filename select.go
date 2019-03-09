@@ -25,6 +25,23 @@ func slice2Reflect(slice interface{}) (reflect.Value, error) {
 	return rv, nil
 }
 
+func sliceElm2Reflect(slice interface{}) (reflect.Value, error) {
+	rv := reflect.ValueOf(slice)
+
+	if rv.Kind() == reflect.Slice {
+		return rv, nil
+	}
+
+	if rv.Kind() != reflect.Ptr {
+		return reflect.ValueOf(nil), ERR_SLICE_TYPE
+	}
+
+	if rv.Elem().Kind() != reflect.Slice {
+		return reflect.ValueOf(nil), ERR_SLICE_TYPE
+	}
+	return rv.Elem(), nil
+}
+
 func Select(slice interface{}, fn CondFunc) (interface{}, error) {
 
 	rv, err := slice2Reflect(slice)

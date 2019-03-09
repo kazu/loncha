@@ -194,6 +194,16 @@ func TestPtrSelect(t *testing.T) {
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 }
 
+func TestShuffle(t *testing.T) {
+	slice := MakeSliceSample()
+	a := slice[0]
+
+	err := Shuffle(slice, 2)
+
+	assert.NoError(t, err)
+	assert.NotEqual(t, slice[0].ID, a.ID)
+}
+
 func BenchmarkFilter(b *testing.B) {
 
 	orig := MakeSliceSample()

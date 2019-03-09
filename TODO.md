@@ -11,7 +11,7 @@
     条件にあったデータを消す
 - [X] lonacha.Uniq 重複削除(存在確認にinterface cost がでかい)
 - [x] lonacha.IndexOf index を取る
-- [ ] lonacha.Shuffle 
+- [x] lonacha.Shuffle 
 - [ ] lonacha.Step()  []int を作る。
 - [ ] lonacha.Conv   
     slice からslice を変換
