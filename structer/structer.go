@@ -19,6 +19,7 @@ import (
 )
 
 type StructInfo struct {
+	PkgName  string
 	Name     string
 	Fields   map[string]string
 	Embedded []string
@@ -63,8 +64,9 @@ func StrcutInfos(src string, pkgname string) (infos []StructInfo, err error) {
 
 		internal := obj.Type().Underlying().(*types.Struct)
 		sinfo := StructInfo{
-			Name:   obj.Name(),
-			Fields: map[string]string{},
+			PkgName: pkgname,
+			Name:    obj.Name(),
+			Fields:  map[string]string{},
 		}
 		for i := 0; i < internal.NumFields(); i++ {
 			f := internal.Field(i)

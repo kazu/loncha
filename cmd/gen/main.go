@@ -17,6 +17,11 @@ func SetupLogger() {
 }
 
 func main() {
+	if len(os.Args) < 4 {
+		fmt.Fprint(os.Stderr, "gen src pkgname struct_name template")
+		return
+	}
+
 	src := os.Args[1]
 	pkgname := os.Args[2]
 	structName := os.Args[3]
@@ -35,6 +40,8 @@ func main() {
 		newSrc, err := sinfos[0].FromTemplate(template)
 		if err == nil {
 			fmt.Print(newSrc)
+		} else {
+			fmt.Fprint(os.Stderr, err)
 		}
 	}
 
