@@ -59,10 +59,15 @@ define base struct
 ```
 package game_object
 
+import (
+    "github.com/kazu/lonacha/list_head"
+
+
 type Player struct {
     ID int
     Name string
     Hp int
+    list_head.ListHead
 }
 ```
 
