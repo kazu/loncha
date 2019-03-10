@@ -2,6 +2,7 @@ package list_head_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"unsafe"
 
@@ -52,7 +53,8 @@ func TestDelete(t *testing.T) {
 	second.Delete()
 
 	assert.Equal(t, first.Prev(), &first)
-	assert.Equal(t, first.Next(), &first)
+	assert.Equal(t, first.Next(),
+		&first, fmt.Sprintf("first=%+v next=%+v", &first, first.Next()))
 	assert.True(t, first.Empty())
 	assert.True(t, first.IsLast())
 

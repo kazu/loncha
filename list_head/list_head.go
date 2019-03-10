@@ -38,12 +38,17 @@ func (head *ListHead) Add(new *ListHead) {
 }
 
 func (l *ListHead) Delete() *ListHead {
-	next := l.next
 
-	l.prev.next, l.next.prev = l.next, l.prev
-	l.next = nil
-	l.prev = nil
-	return next
+	if l.Len() > 2 {
+		l.next.prev, l.prev.next = l.prev, l.next
+	} else {
+		l.prev.next = l.prev
+	}
+
+	l.next, l.prev = l, l
+
+	return l.next
+
 }
 
 func (l *ListHead) Empty() bool {

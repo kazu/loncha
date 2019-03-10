@@ -1,0 +1,41 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/kazu/lonacha/structer"
+	"go.uber.org/zap"
+)
+
+var Logger *zap.Logger
+
+func SetupLogger() {
+
+	Logger, _ = zap.NewProduction()
+
+}
+
+func main() {
+	src := os.Args[1]
+	pkgname := os.Args[2]
+	structName := os.Args[3]
+	template := os.Args[4]
+
+	SetupLogger()
+
+	sinfos, err := structer.StrcutInfos(src, pkgname)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+	}
+	for _, info := range sinfos {
+		if info.Name != structName {
+			continue
+		}
+		newSrc, err := sinfos[0].FromTemplate(template)
+		if err == nil {
+			fmt.Print(newSrc)
+		}
+	}
+
+}
