@@ -116,4 +116,6 @@ func TestContainerListAdd(t *testing.T) {
 	hoge.Add(&hoge2)
 
 	assert.Equal(t, hoge.Next().ID, 2)
+	assert.Equal(t, hoge.Len(), 2)
+	assert.Equal(t, hoge.Next().Len(), 2)
 }

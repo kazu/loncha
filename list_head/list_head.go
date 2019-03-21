@@ -65,7 +65,7 @@ func (l *ListHead) IsFirst() bool {
 
 func (l *ListHead) Len() (cnt int) {
 
-	cnt = 0
+	cnt = 1
 	for head := l.Front(); head.next != head; head = head.next {
 		cnt++
 	}
