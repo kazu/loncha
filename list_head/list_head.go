@@ -6,6 +6,16 @@
 // list_head is used by lonacha/gen/containers_list
 package list_head
 
+import (
+	"errors"
+	"sync/atomic"
+	"unsafe"
+)
+
+var (
+	MODE_CONCURRENT = false
+)
+
 type ListHead struct {
 	prev *ListHead
 	next *ListHead
@@ -30,21 +40,100 @@ func listAdd(new, prev, next *ListHead) {
 	} else {
 		prev.next, new.prev = new, prev
 	}
+}
+
+func listAddWitCas(new, prev, next *ListHead) (err error) {
+
+	if atomic.CompareAndSwapPointer(
+		(*unsafe.Pointer)(unsafe.Pointer(&prev.next)),
+		unsafe.Pointer(next),
+		unsafe.Pointer(new)) {
+		if prev != next {
+			next.prev, new.next, new.prev = new, next, prev
+		} else {
+			new.prev = prev
+		}
+		return
+	}
+	return errors.New("cas conflict")
 
 }
 
 func (head *ListHead) Add(new *ListHead) {
+	if MODE_CONCURRENT {
+		for true {
+			err := listAddWitCas(new, head, head.next)
+			if err == nil {
+				break
+			}
+		}
+		return
+	}
 	listAdd(new, head, head.next)
+}
+
+func (l *ListHead) MarkForDelete() (err error) {
+
+	if atomic.CompareAndSwapPointer(
+		(*unsafe.Pointer)(unsafe.Pointer(&l.next)),
+		unsafe.Pointer(l.next),
+		unsafe.Pointer(uintptr(unsafe.Pointer(l.next))+1)) {
+		return
+	}
+	return errors.New("cas conflict(fail mark)")
+}
+
+func (l *ListHead) DeleteWithCas() (err error) {
+
+	if l.Len() > 2 {
+		err = l.MarkForDelete()
+		if err != nil {
+			return err
+		}
+
+		if atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&l.prev.next)),
+			unsafe.Pointer(l),
+			unsafe.Pointer(l.next)) {
+
+			l.next.prev = l.prev
+			return
+		}
+		return errors.New("Delete fail retry")
+	} else {
+		err = l.MarkForDelete()
+		if err != nil {
+			return err
+		}
+
+		if atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&l.prev.next)),
+			unsafe.Pointer(l),
+			unsafe.Pointer(l.prev)) {
+			return
+		}
+		return errors.New("Delete fail retry")
+	}
+	return
 }
 
 func (l *ListHead) Delete() *ListHead {
 
-	if l.Len() > 2 {
-		l.next.prev, l.prev.next = l.prev, l.next
+	if MODE_CONCURRENT {
+		for true {
+			err := l.DeleteWithCas()
+			if err == nil {
+				break
+			}
+		}
 	} else {
-		l.prev.next = l.prev
-	}
 
+		if l.Len() > 2 {
+			l.next.prev, l.prev.next = l.prev, l.next
+		} else {
+			l.prev.next = l.prev
+		}
+	}
 	l.next, l.prev = l, l
 
 	return l.next
@@ -66,7 +155,7 @@ func (l *ListHead) IsFirst() bool {
 func (l *ListHead) Len() (cnt int) {
 
 	cnt = 1
-	for head := l.Front(); head.next != head; head = head.next {
+	for back := l.Back(); back.prev != back; back = back.prev {
 		cnt++
 	}
 	return cnt

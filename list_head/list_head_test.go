@@ -36,6 +36,24 @@ func TestAdd(t *testing.T) {
 
 }
 
+func TestAddWithConcurrent(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+
+	first := list_head.ListHead{}
+	first.Init()
+
+	second := list_head.ListHead{}
+	second.Init()
+
+	first.Add(&second)
+
+	assert.Equal(t, first.Prev(), &second)
+	assert.Equal(t, first.Next(), &second)
+	assert.Equal(t, second.Prev(), &first)
+	assert.Equal(t, second.Next(), &first)
+
+}
+
 func TestDelete(t *testing.T) {
 	first := list_head.ListHead{}
 	first.Init()
@@ -57,6 +75,35 @@ func TestDelete(t *testing.T) {
 		&first, fmt.Sprintf("first=%+v next=%+v", &first, first.Next()))
 	assert.True(t, first.Empty())
 	assert.True(t, first.IsLast())
+	assert.Equal(t, second.Prev(), &second)
+	assert.Equal(t, second.Next(), &second)
+
+}
+
+func TestDeleteWithConcurrent(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+	first := list_head.ListHead{}
+	first.Init()
+
+	second := list_head.ListHead{}
+	second.Init()
+
+	first.Add(&second)
+
+	assert.Equal(t, first.Prev(), &second)
+	assert.Equal(t, first.Next(), &second)
+	assert.Equal(t, second.Prev(), &first)
+	assert.Equal(t, second.Next(), &first)
+
+	second.Delete()
+
+	assert.Equal(t, first.Prev(), &first)
+	assert.Equal(t, first.Next(),
+		&first, fmt.Sprintf("first=%+v next=%+v", &first, first.Next()))
+	assert.True(t, first.Empty())
+	assert.True(t, first.IsLast())
+	assert.Equal(t, second.Prev(), &second)
+	assert.Equal(t, second.Next(), &second)
 
 }
 
@@ -106,7 +153,7 @@ func (d *Hoge) ContainOf(ptr *list_head.ListHead) *Hoge {
 }
 
 func TestContainerListAdd(t *testing.T) {
-
+	list_head.MODE_CONCURRENT = true
 	hoge := Hoge{ID: 1, Name: "aaa"}
 	hoge.Init()
 
