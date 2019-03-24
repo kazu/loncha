@@ -27,8 +27,7 @@ func (head *ListHead) Init() {
 }
 
 func (head *ListHead) Prev() *ListHead {
-	head = head.prev
-	return head
+	return head.prev
 }
 
 func (head *ListHead) isDeleted() bool {
@@ -42,11 +41,9 @@ func (head *ListHead) Next() *ListHead {
 
 	if head.isDeleted() {
 		//FIXME: dosent work if mark > 3
-		head = (*ListHead)(unsafe.Pointer((uintptr(unsafe.Pointer(head.next)) ^ 3)))
-		return head
+		return (*ListHead)(unsafe.Pointer((uintptr(unsafe.Pointer(head.next)) ^ 3)))
 	}
-	head = head.next
-	return head
+	return head.next
 }
 
 func listAdd(new, prev, next *ListHead) {
@@ -180,8 +177,7 @@ func (l *ListHead) Front() (head *ListHead) {
 
 	for head = l; head.prev != head; head = head.prev {
 		if head.IsFirst() {
-			l = head
-			return l
+			return head
 		}
 	}
 	//panic("front not found")
