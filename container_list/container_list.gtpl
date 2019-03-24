@@ -142,6 +142,10 @@ func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
 
 	cur := l.Front()
 
+	if cur.Next() != cur {
+		fn(cur)
+	}
+
 	for cur.NextWithIter() {
 		fn(cur)
 	}
