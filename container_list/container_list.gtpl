@@ -137,3 +137,9 @@ func (l *{{.Name}}) PushFrontList(other *{{.Name}}) {
 	other.PushBackList(l)
 	return
 }
+
+func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
+	for d, first := l.Front(), true; d.Next() != d || first; d, first = d.Next(), false {
+		fn(d)
+	}
+} 

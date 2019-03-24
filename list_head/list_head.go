@@ -30,7 +30,19 @@ func (head *ListHead) Prev() *ListHead {
 	return head.prev
 }
 
+func (head *ListHead) isDeleted() bool {
+	ptr := uintptr(unsafe.Pointer(head.next))
+	if ptr&3 > 0 {
+		return true
+	}
+	return false
+}
 func (head *ListHead) Next() *ListHead {
+
+	if head.isDeleted() {
+		//FIXME: dosent work if mark > 3
+		return (*ListHead)(unsafe.Pointer((uintptr(unsafe.Pointer(head.next)) ^ 3)))
+	}
 	return head.next
 }
 
