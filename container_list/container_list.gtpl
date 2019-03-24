@@ -143,10 +143,10 @@ func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
 	cur := l.Front()
 
 	for cur.NextWithIter() {
-		fn(d)
+		fn(cur)
 	}
 	if cur.Next() == cur {
-		fn(d)
+		fn(cur)
 	}
 
 
