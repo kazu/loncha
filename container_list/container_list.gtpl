@@ -139,9 +139,32 @@ func (l *{{.Name}}) PushFrontList(other *{{.Name}}) {
 }
 
 func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
-	len := l.Len()
-	for i, d := 0, l.Front(); i < len; i, d = i+1, d.Next()  {
+
+	cur := l.Front()
+
+	for cur.NextWithIter() {
+		fn(d)
+	}
+	if cur.Next() == cur {
 		fn(d)
 	}
 
-} 
+
+}
+
+func (l *{{.Name}}) NextWithIter() *{{.Name}} {
+	if l.Next() == l {
+		return nil
+	}
+	l = l.Next()
+	return l
+}
+
+
+func (l *{{.Name}}) PrevWithIter() *{{.Name}} {
+	if l.Prev() == l {
+		return nil
+	}
+	l = l.Prev()
+	return l
+}
