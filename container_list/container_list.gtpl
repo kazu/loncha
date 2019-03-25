@@ -151,6 +151,7 @@ func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
 
 type {{.Name}}Cursor struct {
 	IsLast bool
+	IsLast    bool
 	elm    *{{.Name}}
 }
 
@@ -159,15 +160,36 @@ func (l *{{.Name}}) Cursor() {{.Name}}Cursor {
 	return {{.Name}}Cursor{IsLast: false, elm: l.Front()}
 }
 
-func (cur *{{.Name}}Cursor) Next() bool {
-	if cur.elm.IsLast() && !cur.IsLast {
-		cur.IsLast = true
-		return true
+
+func (cur *{.Name}}Cursor) Next() (ok bool) {
+
+	defer func() {
+		if !cur.IsStarted {
+			cur.IsStarted = true
+		}
+	}()
+	skip_next := false
+	ok = true
+
+	if cur.IsStarted && cur.IsLast {
+		ok = false
 	}
 
-	if cur.elm.IsLast() {
-		return false
+	if cur.elm.IsFirst() && !cur.IsStarted {
+		skip_next = ok
+
 	}
-	cur.elm = cur.elm.Next()
-	return true
+	if cur.elm.IsLast() {
+		cur.IsLast = true
+		if !cur.elm.IsFirst() {
+			ok = false
+		}
+	}
+	if !skip_next {
+		cur.elm = cur.elm.Next()
+	}
+
+	return
+
 }
+
