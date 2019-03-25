@@ -161,7 +161,7 @@ func (l *{{.Name}}) Cursor() {{.Name}}Cursor {
 }
 
 
-func (cur *{.Name}}Cursor) Next() (ok bool) {
+func (cur *{{.Name}}Cursor) Next() (ok bool) {
 
 	defer func() {
 		if !cur.IsStarted {
