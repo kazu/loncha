@@ -138,37 +138,36 @@ func (l *{{.Name}}) PushFrontList(other *{{.Name}}) {
 	return
 }
 
+
 func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
 
-	cur := l.Front()
+	cur := l.Cursor()
 
-	if cur.Next() != cur {
-		fn(cur)
+	for cur.Next() {
+		fn(cur.elm)
 	}
-
-	for cur.NextWithIter() {
-		fn(cur)
-	}
-	if cur.Next() == cur {
-		fn(cur)
-	}
-
 
 }
 
-func (l *{{.Name}}) NextWithIter() *{{.Name}} {
-	if l.Next() == l {
-		return nil
-	}
-	l = l.Next()
-	return l
+type {{.Name}}Cursor struct {
+	IsLast bool
+	elm    *{{.Name}}
 }
 
+func (l *{{.Name}}) Cursor() {{.Name}}Cursor {
 
-func (l *{{.Name}}) PrevWithIter() *{{.Name}} {
-	if l.Prev() == l {
-		return nil
+	return {{.Name}}Cursor{IsLast: false, elm: l.Front()}
+}
+
+func (cur *{{.Name}}Cursor) Next() bool {
+	if cur.elm.IsLast() && !cur.IsLast {
+		cur.IsLast = true
+		return true
 	}
-	l = l.Prev()
-	return l
+
+	if cur.elm.IsLast() {
+		return false
+	}
+	cur.elm = cur.elm.Next()
+	return true
 }
