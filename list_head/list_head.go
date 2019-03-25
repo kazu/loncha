@@ -97,7 +97,23 @@ func (l *ListHead) MarkForDelete() (err error) {
 
 func (l *ListHead) DeleteWithCas() (err error) {
 
-	if l.Len() > 2 {
+	if l.IsFirst() {
+		l.next.prev = l.next
+		return
+	} else if l.IsLast() {
+		err = l.MarkForDelete()
+		if err != nil {
+			return err
+		}
+
+		if atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&l.prev.next)),
+			unsafe.Pointer(l),
+			unsafe.Pointer(l.prev)) {
+			return
+		}
+		return errors.New("Delete fail retry")
+	} else {
 		err = l.MarkForDelete()
 		if err != nil {
 			return err
@@ -112,21 +128,8 @@ func (l *ListHead) DeleteWithCas() (err error) {
 			return
 		}
 		return errors.New("Delete fail retry")
-	} else {
-		err = l.MarkForDelete()
-		if err != nil {
-			return err
-		}
-
-		if atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&l.prev.next)),
-			unsafe.Pointer(l),
-			unsafe.Pointer(l.prev)) {
-			return
-		}
-		return errors.New("Delete fail retry")
 	}
-	return
+
 }
 
 func (l *ListHead) Delete() *ListHead {
@@ -140,10 +143,12 @@ func (l *ListHead) Delete() *ListHead {
 		}
 	} else {
 
-		if l.Len() > 2 {
-			l.next.prev, l.prev.next = l.prev, l.next
-		} else {
+		if l.IsFirst() {
+			l.next.prev = l.next
+		} else if l.IsLast() {
 			l.prev.next = l.prev
+		} else {
+			l.next.prev, l.prev.next = l.prev, l.next
 		}
 	}
 	l.next, l.prev = l, l
