@@ -151,7 +151,7 @@ func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
 
 type {{.Name}}Cursor struct {
 	IsLast bool
-	IsLast    bool
+	IsStarted    bool
 	elm    *{{.Name}}
 }
 
