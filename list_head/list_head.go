@@ -30,7 +30,7 @@ func (head *ListHead) Prev() *ListHead {
 	return head.prev
 }
 
-func (head *ListHead) isDeleted() bool {
+func (head *ListHead) isDeleted() (deleted bool) {
 	ptr := uintptr(unsafe.Pointer(head.next))
 	if ptr&3 > 0 {
 		return true
@@ -191,7 +191,7 @@ func (l *ListHead) Front() (head *ListHead) {
 
 func (l *ListHead) Back() (head *ListHead) {
 
-	for head = l; head.next != head; head = head.next {
+	for head = l; head.Next() != head; head = head.Next() {
 		if head.IsLast() {
 			return head
 		}
