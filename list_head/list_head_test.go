@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+<<<<<<< HEAD
 	"sync/atomic"
+=======
+>>>>>>> アルゴリズムを変えた
 	"testing"
 	"unsafe"
 
@@ -547,5 +550,5 @@ func TestUnsafe(t *testing.T) {
 	_ = cc
 	fmt.Printf("cc=0x%x b.a=%d b2.a=%d\n", cc, *b.a, *b2.a)
 	assert.True(t, true)
-
+	
 }

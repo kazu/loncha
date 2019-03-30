@@ -58,7 +58,9 @@ func (head *ListHead) isDeleted() (deleted bool) {
 		panic("isDelete invalid")
 	}
 	next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next)))
-
+		
+	//nptr := unsafe.Pointer(head.next)
+	//next := atomic.LoadPointer(&nptr)
 	if next == nil {
 		panic("isDelete next is nil")
 		return false
@@ -394,6 +396,7 @@ func (l *ListHead) DeleteWithCas(prev *ListHead) (err error) {
 	_ = head
 	defer func() {
 		if err == nil {
+			//FIXME: occur problem. remove this comment out
 			//if ContainOf(head, l) {
 			//	panic("????!!!")
 			//}
