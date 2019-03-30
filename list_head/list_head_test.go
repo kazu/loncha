@@ -3,6 +3,7 @@ package list_head_test
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"testing"
 	"unsafe"
 
@@ -165,4 +166,200 @@ func TestContainerListAdd(t *testing.T) {
 	assert.Equal(t, hoge.Next().ID, 2)
 	assert.Equal(t, hoge.Len(), 2)
 	assert.Equal(t, hoge.Next().Len(), 2)
+}
+
+func TestNext(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+
+	var head list_head.ListHead
+
+	head.Init()
+
+	marked := 0
+
+	for i := 0; i < 10; i++ {
+		e := &list_head.ListHead{}
+		e.Init()
+		head.Add(e)
+	}
+
+	elm := &head
+
+	for {
+		fmt.Printf("1: elm=%s\n", elm.Pp())
+		if elm == elm.Next() {
+			break
+		}
+		elm = elm.Next()
+		marked++
+	}
+
+	assert.Equal(t, 10, marked)
+	fmt.Println("-----")
+	marked = 0
+	elm = &head
+	for {
+		fmt.Printf("2: elm=%s\n", elm.Pp())
+		if elm == elm.Next() {
+			break
+		}
+
+		if rand.Intn(1) == 0 {
+			elm.MarkForDelete()
+			marked++
+		}
+		elm = elm.Next()
+
+	}
+	fmt.Println("-----")
+	cnt := 0
+	elm = &head
+	for {
+		if elm == elm.Next() {
+			break
+		}
+		elm = elm.Next()
+		cnt++
+	}
+
+	assert.Equal(t, 10-marked, cnt)
+	assert.Equal(t, cnt, head.Len())
+
+}
+
+func ContainOf(head, elm *list_head.ListHead) bool {
+
+	c := head.Cursor()
+
+	for c.Next() {
+		if c.Pos == elm {
+			return true
+		}
+	}
+
+	return false
+}
+
+func TestConcurrentAddAndDelete(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+	const concurrent int = 40
+
+	var head list_head.ListHead
+	var other list_head.ListHead
+
+	head.Init()
+	other.Init()
+
+	fmt.Printf("start head=%s other=%s\n", head.Pp(), other.Pp())
+
+	doneCh := make(chan bool, concurrent)
+
+	cond := func() {
+		if concurrent < head.Len()+other.Len() {
+			//fmt.Println("invalid")
+			assert.True(t, false, head.Len()+other.Len())
+		}
+	}
+	_ = cond
+
+	for i := 0; i < concurrent; i++ {
+		go func(i int) {
+
+			e := &list_head.ListHead{}
+			e.Init()
+			fmt.Printf("idx=%5d Init e=%s len(head)=%d len(other)=%d\n",
+				i, e.Pp(), head.Len(), other.Len())
+			len := head.Len()
+			head.Add(e)
+			if e.Front() != &head {
+				fmt.Printf("!!!!\n")
+			}
+
+			assert.True(t, ContainOf(&head, e))
+
+			//cond()
+			fmt.Printf("idx=%5d Add e=%s last=%5v before_len(head)=%d len(head)=%d len(other)=%d\n",
+				i, e.Pp(), e.IsLast(), len, head.Len(), other.Len())
+			before_len := head.Len()
+			for {
+
+				if e.Delete() != nil {
+					break
+				}
+
+				//if e.DeleteWithCas(e.Prev()) == nil {
+				//	break
+				//}
+				fmt.Printf("delete all marked head=%s e=%s\n", head.Pp(), e.Pp())
+				head.DeleteMarked()
+				fmt.Printf("after marked gc head=%s e=%s\n", head.Pp(), e.Pp())
+				if !ContainOf(&head, e) {
+					break
+				}
+				//fmt.Printf("????")
+			}
+			if ContainOf(&head, e) {
+				fmt.Printf("!!!!\n")
+			}
+			if before_len < head.Len() {
+				fmt.Printf("invalid increase? idx=%d \n", i)
+			}
+			assert.False(t, ContainOf(&head, e))
+			assert.Equal(t, e, e.Next())
+			assert.Equal(t, e, e.Prev())
+
+			//cond()
+
+			fmt.Printf("idx=%5d Delete e=%s len(head)=%d len(other)=%d\n",
+				i, e.Pp(), head.Len(), other.Len())
+			e.Init()
+			//assert.False(t, ContainOf(&head, e))
+
+			before_e := e.Pp()
+			other.Add(e)
+			assert.False(t, ContainOf(&head, e))
+			assert.True(t, ContainOf(&other, e))
+			//cond()
+
+			fmt.Printf("idx=%5d Move before_e=%s e=%s len(head)=%d len(other)=%d\n",
+				i, before_e, e.Pp(), head.Len(), other.Len())
+
+			doneCh <- true
+		}(i)
+
+	}
+	for i := 0; i < concurrent; i++ {
+		<-doneCh
+	}
+
+	head.DeleteMarked()
+	assert.Equal(t, concurrent, other.Len())
+	assert.Equal(t, 0, head.Len(), fmt.Sprintf("head=%s head.Next()=%s", head.Pp(), head.Next().Pp()))
+
+}
+
+func TestUnsafe(t *testing.T) {
+
+	b := &struct {
+		a *int
+	}{
+		a: nil,
+	}
+	b2 := &struct {
+		a *int
+	}{
+		a: nil,
+	}
+
+	i := int(4)
+	b.a = &i
+	b2.a = &i
+	//b = nil
+	b.a = (*int)(unsafe.Pointer((uintptr(unsafe.Pointer(b.a)) ^ 1)))
+
+	cc := uintptr(unsafe.Pointer(b.a))
+	_ = cc
+	fmt.Printf("cc=0x%x b.a=%d b2.a=%d\n", cc, *b.a, *b2.a)
+	assert.True(t, false)
+
 }
