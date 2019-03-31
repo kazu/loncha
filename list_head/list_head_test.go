@@ -4,10 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-<<<<<<< HEAD
 	"sync/atomic"
-=======
->>>>>>> アルゴリズムを変えた
 	"testing"
 	"unsafe"
 
@@ -459,6 +456,12 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			}
 
 			assert.True(t, list_head.ContainOf(&head, e))
+
+			for i := 0; i < 3; i++ {
+				ee := &list_head.ListHead{}
+				ee.Init()
+				head.Add(ee)
+			}
 
 			for i := 0; i < 3; i++ {
 				ee := &list_head.ListHead{}
