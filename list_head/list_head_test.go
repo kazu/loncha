@@ -156,8 +156,12 @@ func (d *Hoge) ContainOf(ptr *list_head.ListHead) *Hoge {
 
 func TestContainerListAdd(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
+	var list Hoge
+	list.Init()
+
 	hoge := Hoge{ID: 1, Name: "aaa"}
 	hoge.Init()
+	list.Add(&hoge)
 
 	hoge2 := Hoge{ID: 2, Name: "bbb"}
 	hoge2.Init()
@@ -198,14 +202,15 @@ func TestNext(t *testing.T) {
 	assert.Equal(t, 10, marked)
 	fmt.Println("-----")
 	marked = 0
-	elm = &head
+	elm = head.Next()
+	//elm = &head
 	for {
 		fmt.Printf("2: elm=%s\n", elm.Pp())
 		if elm == elm.Next() {
 			break
 		}
 
-		if rand.Intn(1) == 0 {
+		if rand.Intn(2) == 0 {
 			elm2 := elm.Next()
 			elm.MarkForDelete()
 			marked++
@@ -270,6 +275,11 @@ func TestNextNew(t *testing.T) {
 			Name:   "continus marked in first",
 			Count:  10,
 			marked: []int{0, 1, 2, 4, 5, 6},
+		},
+		{
+			Name:   "all deleted",
+			Count:  3,
+			marked: []int{0, 1, 2},
 		},
 	}
 
