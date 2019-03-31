@@ -261,6 +261,16 @@ func TestNextNew(t *testing.T) {
 			Count:  10,
 			marked: []int{4, 5, 6},
 		},
+		{
+			Name:   "continus marked in last",
+			Count:  10,
+			marked: []int{3, 4, 5, 8, 9},
+		},
+		{
+			Name:   "continus marked in first",
+			Count:  10,
+			marked: []int{0, 1, 2, 4, 5, 6},
+		},
 	}
 
 	makeElement := func() *list_head.ListHead {
@@ -293,6 +303,7 @@ func TestNextNew(t *testing.T) {
 				fmt.Println("--b--")
 				t.Errorf("missmatch len=%d cnt=%d marked=%d", list.Len(), test.Count, len(test.marked))
 				fmt.Println("--e--")
+				fmt.Printf("---all--\n%s\n--all-end--\n", list.DumpAllWithMark())
 			}
 			fmt.Printf("====END TEST(%s)===\n", test.Name)
 		})

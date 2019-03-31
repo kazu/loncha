@@ -59,23 +59,6 @@ func (list *ListHead) DeleteMarked() {
 	head := list.Front()
 	elm := head
 	old := elm
-	before_len := head.Len()
-	before_dump := head.DumpAll()
-	before_head_pp := head.Pp()
-
-	defer func() {
-		new_dump := head.DumpAll()
-		//if len(new_dump) > len(before_dump) {
-
-		fmt.Printf("before %s \n%s\nafter(%s)\n%s\n",
-			before_head_pp, before_dump,
-			head.Pp(), new_dump)
-		//}
-	}()
-
-	if head.Len() == 1 {
-		fmt.Printf("debug start\n")
-	}
 
 	for {
 		// mark
@@ -84,25 +67,11 @@ func (list *ListHead) DeleteMarked() {
 		if old == elm {
 			return
 		}
-		/*
-			if !old.isDeleted() && !elm.isDeleted() {
-				//elm.prev = old
-				atomic.StorePointer(
-					(*unsafe.Pointer)(unsafe.Pointer(&elm.prev)),
-					unsafe.Pointer(old))
-			}*/
 
 		if elm.isDeleted() {
-			success := elm.deleteDirect(old)
-			//if elm.deleteDirect(old) {
-			//				old = elm
-			//			} else {
-			fmt.Printf("elm deleteDirect prev=%s e=%s succ=%v\n", old.Pp(), elm.Pp(), success)
+			elm.deleteDirect(old)
 			elm = head
 			//}
-		}
-		if before_len < head.Len() {
-			fmt.Printf("increament ?\n")
 		}
 
 	}
@@ -128,8 +97,8 @@ func (head *ListHead) Next1() (nextElement *ListHead) {
 
 	}()
 
-	nextElement = head.next1()
-	//nextElement = head.next2()
+	//nextElement = head.next1()
+	nextElement = head.next3()
 	return
 }
 
@@ -200,6 +169,30 @@ func (head *ListHead) next1() (nextElement *ListHead) {
 	// )
 
 	return nil
+}
+
+func (head *ListHead) next3() *ListHead {
+
+	if unsafe.Pointer(head) == unsafe.Pointer(head.next) {
+		return nil
+	}
+	if unsafe.Pointer(head) == unsafe.Pointer(uintptr(unsafe.Pointer(head.next))^1) {
+		return nil
+	}
+
+	if head.isDeleted() {
+		panic("next3 must not isDeleted()")
+	}
+	if head.next.isDeleted() {
+		head.DeleteMarked()
+	}
+
+	return head.next
+
+	//	next := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(head.next)) ^ 1)).next3()
+
+	//return next
+
 }
 
 func (head *ListHead) next2() (nextElement *ListHead) {
@@ -417,7 +410,7 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 		}
 	}()
 
-	if l.IsLast() {
+	if l.isLastWithMarked() {
 		if atomic.CompareAndSwapPointer(
 			(*unsafe.Pointer)(unsafe.Pointer(&prev.next)),
 			//unsafe.Pointer(uintptr(unsafe.Pointer(l.next))^1),
@@ -435,7 +428,7 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 		unsafe.Pointer(uintptr(unsafe.Pointer(l.next))^1)) {
 		//		unsafe.Pointer(l.prev)) {
 		success = true
-		if l.IsLast() {
+		if l.isLastWithMarked() {
 			panic("????")
 		} else {
 			//l.Next().prev = l.prev
@@ -511,6 +504,16 @@ func (l *ListHead) IsLast() bool {
 	return l.Next() == l
 }
 
+func (l *ListHead) isLastWithMarked() bool {
+	//return l.Next() == l
+	if !l.isDeleted() {
+		return l.next == l
+	}
+
+	return unsafe.Pointer(l) == unsafe.Pointer(uintptr(unsafe.Pointer(l.next))^1)
+
+}
+
 func (l *ListHead) IsFirst() bool {
 	return l.prev == l
 }
@@ -524,7 +527,7 @@ func (l *ListHead) Len() (cnt int) {
 
 	for s := l; s.Next() != s; s = s.Next() {
 		cnt++
-		fmt.Printf("\t\ts=%s cnt=%d\n", s.P(), cnt)
+		//fmt.Printf("\t\ts=%s cnt=%d\n", s.P(), cnt)
 	}
 
 	return cnt
@@ -593,8 +596,64 @@ func (head *ListHead) DumpAll() string {
 		for i := 0; i < cnt; i++ {
 			b.WriteString("\t")
 		}
-		b.WriteString(c.Pos.Pp())
+		b.WriteString(c.Pos.P())
 		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func (head *ListHead) DumpAllWithMark() string {
+
+	cnt := 1
+	var b strings.Builder
+
+	cur := head
+	prev := cur
+
+	EqualWithMark := func(src, dst unsafe.Pointer) bool {
+		if src == nil {
+			return true
+		}
+
+		if uintptr(src) == uintptr(dst) {
+			return true
+		}
+
+		if uintptr(src) > uintptr(dst) && uintptr(src)-uintptr(dst) <= 1 {
+			return true
+		}
+		if uintptr(src) < uintptr(dst) && uintptr(dst)-uintptr(src) <= 1 {
+			return true
+		}
+		return false
+	}
+	for i := 0; i < cnt; i++ {
+		b.WriteString("\t")
+	}
+	b.WriteString(cur.P())
+	b.WriteString("\n")
+	cnt++
+
+	for {
+		prev = cur
+		//cur = prev.next
+		if prev.isDeleted() {
+			cur = (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(prev.next)) ^ 1))
+		} else {
+			cur = prev.next
+		}
+
+		for i := 0; i < cnt; i++ {
+			b.WriteString("\t")
+		}
+		b.WriteString(cur.P())
+		b.WriteString("\n")
+
+		if EqualWithMark(unsafe.Pointer(prev), unsafe.Pointer(cur)) {
+			break
+		}
+		cnt++
 	}
 
 	return b.String()
