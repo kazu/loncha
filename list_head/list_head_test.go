@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/kazu/lonacha"
 	"github.com/kazu/lonacha/list_head"
 )
 
@@ -205,8 +206,11 @@ func TestNext(t *testing.T) {
 		}
 
 		if rand.Intn(1) == 0 {
+			elm2 := elm.Next()
 			elm.MarkForDelete()
 			marked++
+			elm = elm2
+			continue
 		}
 		elm = elm.Next()
 
@@ -240,9 +244,89 @@ func ContainOf(head, elm *list_head.ListHead) bool {
 	return false
 }
 
+func TestNextNew(t *testing.T) {
+
+	tests := []struct {
+		Name   string
+		Count  int
+		marked []int
+	}{
+		{
+			Name:   "first middle last marked",
+			Count:  10,
+			marked: []int{0, 5, 9},
+		},
+		{
+			Name:   "continus marked",
+			Count:  10,
+			marked: []int{4, 5, 6},
+		},
+	}
+
+	makeElement := func() *list_head.ListHead {
+		e := &list_head.ListHead{}
+		e.Init()
+		return e
+	}
+
+	list_head.MODE_CONCURRENT = true
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			fmt.Printf("====START TEST(%s)===\n", test.Name)
+			var list list_head.ListHead
+			list.Init()
+			for i := 0; i < test.Count; i++ {
+				e := makeElement()
+				list.Add(e)
+
+				found := lonacha.Contain(&test.marked, func(idx int) bool {
+					return test.marked[idx] == i
+				})
+				if found {
+					e.MarkForDelete()
+					fmt.Printf("\tmarking=%s\n", e.P())
+				}
+			}
+			//list.DeleteMarked()
+			if list.Len() != test.Count-len(test.marked) {
+				fmt.Println("--b--")
+				t.Errorf("missmatch len=%d cnt=%d marked=%d", list.Len(), test.Count, len(test.marked))
+				fmt.Println("--e--")
+			}
+			fmt.Printf("====END TEST(%s)===\n", test.Name)
+		})
+	}
+}
+
+func TestNext1(t *testing.T) {
+
+	list_head.MODE_CONCURRENT = true
+
+	var head list_head.ListHead
+
+	head.Init()
+	e := &list_head.ListHead{}
+	assert.Equal(t, &head, head.Next1())
+	e.Init()
+	head.Add(e)
+	e.MarkForDelete()
+
+	assert.Equal(t, &head, head.Next1())
+	assert.Equal(t, 0, head.Len())
+
+	e2 := &list_head.ListHead{}
+	e2.Init()
+	head.Add(e2)
+
+	assert.Equal(t, e2, head.Next1())
+	assert.Equal(t, 1, head.Len())
+
+}
+
 func TestConcurrentAddAndDelete(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	const concurrent int = 40
+	const concurrent int = 88
 
 	var head list_head.ListHead
 	var other list_head.ListHead
@@ -276,6 +360,12 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			}
 
 			assert.True(t, ContainOf(&head, e))
+
+			for i := 0; i < 3; i++ {
+				ee := &list_head.ListHead{}
+				ee.Init()
+				head.Add(ee)
+			}
 
 			//cond()
 			fmt.Printf("idx=%5d Add e=%s last=%5v before_len(head)=%d len(head)=%d len(other)=%d\n",
@@ -334,7 +424,7 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 
 	head.DeleteMarked()
 	assert.Equal(t, concurrent, other.Len())
-	assert.Equal(t, 0, head.Len(), fmt.Sprintf("head=%s head.Next()=%s", head.Pp(), head.Next().Pp()))
+	assert.Equal(t, 3*concurrent, head.Len(), fmt.Sprintf("head=%s head.Next()=%s", head.Pp(), head.Next().Pp()))
 
 }
 

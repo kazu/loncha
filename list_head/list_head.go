@@ -109,7 +109,152 @@ func (list *ListHead) DeleteMarked() {
 
 }
 
-func (head *ListHead) Next() (next *ListHead) {
+func (head *ListHead) Next() (nextElement *ListHead) {
+
+	if !MODE_CONCURRENT {
+		return head.next
+	}
+
+	return head.Next1()
+}
+
+func (head *ListHead) Next1() (nextElement *ListHead) {
+	defer func() {
+		if nextElement == nil {
+			nextElement = head
+		}
+
+		fmt.Printf("\thead(%s).next1() => %s\n", head.P(), nextElement.P())
+
+	}()
+
+	nextElement = head.next1()
+	//nextElement = head.next2()
+	return
+}
+
+// return nil on last of list
+func (head *ListHead) next1() (nextElement *ListHead) {
+
+	uptr := unsafe.Pointer(head.next)
+	next := atomic.LoadPointer(&uptr)
+
+	hptr := unsafe.Pointer(head)
+	pHead := atomic.LoadPointer(&hptr)
+
+	EqualWithMark := func(src, dst unsafe.Pointer) bool {
+		if src == nil {
+			return true
+		}
+
+		if uintptr(src) == uintptr(dst) {
+			return true
+		}
+
+		if uintptr(src) > uintptr(dst) && uintptr(src)-uintptr(dst) <= 1 {
+			return true
+		}
+		if uintptr(src) < uintptr(dst) && uintptr(dst)-uintptr(src) <= 1 {
+			return true
+		}
+		return false
+	}
+
+	for !EqualWithMark(next, pHead) {
+		//	for next != pHead {
+
+		if uintptr(next)&1 > 0 {
+			nextElement = (*ListHead)(unsafe.Pointer(uintptr(next) ^ 1))
+			//Log(true).Debug("list.next1() is marked skip ", zap.String("head", head.P()))
+			return nextElement.next1()
+		}
+		nextElement = (*ListHead)(next)
+
+		if nextElement.isDeleted() {
+			pHead = atomic.LoadPointer(&uptr)
+			atomic.CompareAndSwapPointer(&uptr, next, unsafe.Pointer(nextElement.next1()))
+			next = atomic.LoadPointer(&uptr)
+			if next != nil {
+				// Log(true).Debug("list.next1() is marked(next loop) ",
+				// 	zap.String("head", head.P()),
+				// 	zap.String("next", ((*ListHead)(next)).P()),
+				// )
+			} else {
+				// Log(true).Debug("list.next1() is marked(next loop) ",
+				// 	zap.String("head", head.P()),
+				// 	zap.String("next", "nil"),
+				// )
+			}
+		} else {
+			// Log(true).Debug("list.next1() not marking ",
+			// 	zap.String("head", head.P()),
+			// 	zap.String("next", nextElement.P()))
+
+			return nextElement
+		}
+
+	}
+
+	// Log(true).Debug("list.next1() last position ",
+	// 	zap.String("head", head.P()),
+	// )
+
+	return nil
+}
+
+func (head *ListHead) next2() (nextElement *ListHead) {
+
+RESTART:
+
+	uptr := unsafe.Pointer(head.next)
+	next := atomic.LoadPointer(&uptr)
+
+	hptr := unsafe.Pointer(head)
+	pHead := atomic.LoadPointer(&hptr)
+
+	EqualWithMark := func(src, dst unsafe.Pointer) bool {
+		if src == nil {
+			return true
+		}
+
+		if uintptr(src) == uintptr(dst) {
+			return true
+		}
+
+		if uintptr(src) > uintptr(dst) && uintptr(src)-uintptr(dst) <= 1 {
+			return true
+		}
+		if uintptr(src) < uintptr(dst) && uintptr(dst)-uintptr(src) <= 1 {
+			return true
+		}
+		return false
+	}
+
+	for !EqualWithMark(next, pHead) {
+		//	for next != pHead {
+
+		if uintptr(next)&1 > 0 {
+			head.DeleteMarked()
+			goto RESTART
+			//nextElement = (*ListHead)(unsafe.Pointer(uintptr(next) ^ 1))
+			//return nextElement.next1()
+		}
+		nextElement = (*ListHead)(next)
+
+		if nextElement.isDeleted() {
+			head.DeleteMarked()
+			goto RESTART
+		} else {
+			return nextElement
+		}
+
+	}
+
+	return nil
+
+}
+
+func (head *ListHead) Next0() (next *ListHead) {
 
 	if !MODE_CONCURRENT {
 		next = head.next
@@ -129,7 +274,11 @@ func (head *ListHead) Next() (next *ListHead) {
 	if cur == next {
 		return
 	}
-
+	/*
+		if next.isDeleted() {
+			return next.Next()
+		}
+	*/
 	if cur.isDeleted() {
 		nextPtr = unsafe.Pointer(uintptr(nextPtr) ^ 1)
 		next = (*ListHead)(nextPtr)
@@ -181,7 +330,7 @@ func (head *ListHead) Add(new *ListHead) {
 			if err == nil {
 				break
 			}
-			fmt.Printf("err=%s\n", err.Error())
+			fmt.Printf("Add(): retry err=%s\n", err.Error())
 		}
 		return
 	}
@@ -271,7 +420,8 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 	if l.IsLast() {
 		if atomic.CompareAndSwapPointer(
 			(*unsafe.Pointer)(unsafe.Pointer(&prev.next)),
-			unsafe.Pointer(uintptr(unsafe.Pointer(l.next))^1),
+			//unsafe.Pointer(uintptr(unsafe.Pointer(l.next))^1),
+			unsafe.Pointer(l),
 			unsafe.Pointer(prev)) {
 			success = true
 			return
@@ -300,6 +450,11 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 func (l *ListHead) Pp() string {
 
 	return fmt.Sprintf("%p{prev: %p, next:%p, len: %d}", l, l.prev, l.next, l.Len())
+}
+
+func (l *ListHead) P() string {
+
+	return fmt.Sprintf("%p{prev: %p, next:%p}", l, l.prev, l.next)
 }
 
 func (l *ListHead) Delete() (result *ListHead) {
@@ -369,6 +524,7 @@ func (l *ListHead) Len() (cnt int) {
 
 	for s := l; s.Next() != s; s = s.Next() {
 		cnt++
+		fmt.Printf("\t\ts=%s cnt=%d\n", s.P(), cnt)
 	}
 
 	return cnt
