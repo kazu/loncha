@@ -3,11 +3,14 @@ package list_head_test
 import (
 	"errors"
 	"fmt"
+	"math/rand"
+	"sync/atomic"
 	"testing"
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/kazu/lonacha"
 	"github.com/kazu/lonacha/list_head"
 )
 
@@ -154,8 +157,12 @@ func (d *Hoge) ContainOf(ptr *list_head.ListHead) *Hoge {
 
 func TestContainerListAdd(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
+	var list Hoge
+	list.Init()
+
 	hoge := Hoge{ID: 1, Name: "aaa"}
 	hoge.Init()
+	list.Add(&hoge)
 
 	hoge2 := Hoge{ID: 2, Name: "bbb"}
 	hoge2.Init()
@@ -165,4 +172,380 @@ func TestContainerListAdd(t *testing.T) {
 	assert.Equal(t, hoge.Next().ID, 2)
 	assert.Equal(t, hoge.Len(), 2)
 	assert.Equal(t, hoge.Next().Len(), 2)
+}
+
+func TestNext(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+
+	var head list_head.ListHead
+
+	head.Init()
+
+	marked := 0
+
+	for i := 0; i < 10; i++ {
+		e := &list_head.ListHead{}
+		e.Init()
+		head.Add(e)
+	}
+
+	elm := &head
+
+	for {
+		fmt.Printf("1: elm=%s\n", elm.Pp())
+		if elm == elm.Next() {
+			break
+		}
+		elm = elm.Next()
+		marked++
+	}
+
+	assert.Equal(t, 10, marked)
+	fmt.Println("-----")
+	marked = 0
+	elm = head.Next()
+	//elm = &head
+	for {
+		fmt.Printf("2: elm=%s\n", elm.Pp())
+		if elm == elm.Next() {
+			break
+		}
+
+		if rand.Intn(2) == 0 {
+			elm2 := elm.Next()
+			elm.MarkForDelete()
+			marked++
+			elm = elm2
+			continue
+		}
+		elm = elm.Next()
+
+	}
+	fmt.Println("-----")
+	cnt := 0
+	elm = &head
+	for {
+		if elm == elm.Next() {
+			break
+		}
+		elm = elm.Next()
+		cnt++
+	}
+
+	assert.Equal(t, 10-marked, cnt)
+	assert.Equal(t, cnt, head.Len())
+
+}
+
+func TestNextNew(t *testing.T) {
+
+	tests := []struct {
+		Name   string
+		Count  int
+		marked []int
+	}{
+		{
+			Name:   "first middle last marked",
+			Count:  10,
+			marked: []int{0, 5, 9},
+		},
+		{
+			Name:   "continus marked",
+			Count:  10,
+			marked: []int{4, 5, 6},
+		},
+		{
+			Name:   "continus marked in last",
+			Count:  10,
+			marked: []int{3, 4, 5, 8, 9},
+		},
+		{
+			Name:   "continus marked in first",
+			Count:  10,
+			marked: []int{0, 1, 2, 4, 5, 6},
+		},
+		{
+			Name:   "all deleted",
+			Count:  3,
+			marked: []int{0, 1, 2},
+		},
+	}
+
+	makeElement := func() *list_head.ListHead {
+		e := &list_head.ListHead{}
+		e.Init()
+		return e
+	}
+
+	list_head.MODE_CONCURRENT = true
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			fmt.Printf("====START TEST(%s)===\n", test.Name)
+			var list list_head.ListHead
+			list.Init()
+			for i := 0; i < test.Count; i++ {
+				e := makeElement()
+				list.Add(e)
+
+				found := lonacha.Contain(&test.marked, func(idx int) bool {
+					return test.marked[idx] == i
+				})
+				if found {
+					e.MarkForDelete()
+				}
+			}
+			//list.DeleteMarked()
+			if list.Len() != test.Count-len(test.marked) {
+				t.Errorf("missmatch len=%d cnt=%d marked=%d", list.Len(), test.Count, len(test.marked))
+			}
+			fmt.Printf("====END TEST(%s)===\n", test.Name)
+		})
+	}
+}
+
+func TestNext1(t *testing.T) {
+
+	list_head.MODE_CONCURRENT = true
+
+	var head list_head.ListHead
+
+	head.Init()
+	e := &list_head.ListHead{}
+	assert.Equal(t, &head, head.Next1())
+	e.Init()
+	head.Add(e)
+	e.MarkForDelete()
+
+	assert.Equal(t, &head, head.Next1())
+	assert.Equal(t, 0, head.Len())
+
+	e2 := &list_head.ListHead{}
+	e2.Init()
+	head.Add(e2)
+
+	assert.Equal(t, e2, head.Next1())
+	assert.Equal(t, 1, head.Len())
+
+}
+
+func TestRaceCondtion(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+	const concurrent int = 10000
+
+	makeElement := func() *list_head.ListHead {
+		e := &list_head.ListHead{}
+		e.Init()
+		return e
+	}
+
+	tests := []struct {
+		Name       string
+		Concurrent int
+		reader     func(i int, e *list_head.ListHead)
+		writer     func(i int, e *list_head.ListHead)
+	}{
+		{
+			Name:       "LoadPointer and Cas",
+			Concurrent: concurrent,
+			reader: func(i int, e *list_head.ListHead) {
+				if i > 1 {
+
+					next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(e.Prev().PtrNext())))
+					if uintptr(next)^1 > 0 {
+						fmt.Printf("markd %d\n", i-1)
+					}
+				}
+			},
+			writer: func(i int, e *list_head.ListHead) {
+				//n := e.DirectNext()
+				if atomic.CompareAndSwapPointer(
+					(*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
+					unsafe.Pointer(e.DirectNext()),
+					unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1)) {
+					fmt.Printf("success %d\n", i)
+				}
+			},
+		},
+		{
+			Name:       "LoadPointer and StorePointer",
+			Concurrent: concurrent,
+			reader: func(i int, e *list_head.ListHead) {
+				if i > 1 {
+
+					next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(e.Prev().PtrNext())))
+					if uintptr(next)^1 > 0 {
+						fmt.Printf("markd %d\n", i-1)
+					}
+				}
+			},
+			writer: func(i int, e *list_head.ListHead) {
+				atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
+					unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name,
+			func(t *testing.T) {
+				var head list_head.ListHead
+				head.Init()
+
+				doneCh := make(chan bool, test.Concurrent)
+
+				lists := []*list_head.ListHead{}
+
+				for i := 0; i < test.Concurrent; i++ {
+					e := makeElement()
+					head.Add(e)
+					lists = append(lists, e)
+				}
+				for i, e := range lists {
+
+					go func(i int, e *list_head.ListHead) {
+
+						test.reader(i, e)
+						test.writer(i, e)
+
+						doneCh <- true
+					}(i, e)
+
+				}
+				for i := 0; i < test.Concurrent; i++ {
+					<-doneCh
+				}
+
+			})
+	}
+
+}
+func TestConcurrentAddAndDelete(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+	const concurrent int = 100
+
+	var head list_head.ListHead
+	var other list_head.ListHead
+
+	head.Init()
+	other.Init()
+
+	fmt.Printf("start head=%s other=%s\n", head.P(), other.P())
+
+	doneCh := make(chan bool, concurrent)
+
+	cond := func() {
+		if concurrent < head.Len()+other.Len() {
+			//fmt.Println("invalid")
+			assert.True(t, false, head.Len()+other.Len())
+		}
+	}
+	_ = cond
+
+	for i := 0; i < concurrent; i++ {
+		go func(i int) {
+
+			e := &list_head.ListHead{}
+			e.Init()
+			fmt.Printf("idx=%5d Init e=%s len(head)=%d len(other)=%d\n",
+				i, e.P(), head.Len(), other.Len())
+			len := head.Len()
+			head.Add(e)
+			if e.Front() != &head {
+				fmt.Printf("!!!!\n")
+			}
+
+			assert.True(t, list_head.ContainOf(&head, e))
+
+			for i := 0; i < 3; i++ {
+				ee := &list_head.ListHead{}
+				ee.Init()
+				head.Add(ee)
+			}
+
+			//cond()
+			fmt.Printf("idx=%5d Add e=%s last=%5v before_len(head)=%d len(head)=%d len(other)=%d\n",
+				i, e.P(), e.IsLast(), len, head.Len(), other.Len())
+			before_len := head.Len()
+			for {
+
+				if e.Delete() != nil {
+					break
+				}
+
+				//if e.DeleteWithCas(e.Prev()) == nil {
+				//	break
+				//}
+				fmt.Printf("delete all marked head=%s e=%s\n", head.Pp(), e.P())
+				head.DeleteMarked()
+				fmt.Printf("after marked gc head=%s e=%s\n", head.Pp(), e.P())
+				if !list_head.ContainOf(&head, e) {
+					break
+				}
+				//fmt.Printf("????")
+			}
+			if list_head.ContainOf(&head, e) {
+				fmt.Printf("!!!!\n")
+			}
+			if before_len < head.Len() {
+				fmt.Printf("invalid increase? idx=%d \n", i)
+			}
+			assert.False(t, list_head.ContainOf(&head, e))
+			assert.Equal(t, e, e.Next())
+			assert.Equal(t, e, e.Prev())
+
+			//cond()
+
+			fmt.Printf("idx=%5d Delete e=%s len(head)=%d len(other)=%d\n",
+				i, e.Pp(), head.Len(), other.Len())
+			e.Init()
+			//assert.False(t, ContainOf(&head, e))
+
+			before_e := e.Pp()
+			other.Add(e)
+			assert.False(t, list_head.ContainOf(&head, e))
+			assert.True(t, list_head.ContainOf(&other, e))
+			//cond()
+
+			fmt.Printf("idx=%5d Move before_e=%s e=%s len(head)=%d len(other)=%d\n",
+				i, before_e, e.Pp(), head.Len(), other.Len())
+
+			doneCh <- true
+		}(i)
+
+	}
+	for i := 0; i < concurrent; i++ {
+		<-doneCh
+	}
+
+	head.DeleteMarked()
+	assert.Equal(t, concurrent, other.Len())
+	assert.Equal(t, 3*concurrent, head.Len(), fmt.Sprintf("head=%s head.Next()=%s", head.Pp(), head.Next().Pp()))
+
+}
+
+func TestUnsafe(t *testing.T) {
+
+	b := &struct {
+		a *int
+	}{
+		a: nil,
+	}
+	b2 := &struct {
+		a *int
+	}{
+		a: nil,
+	}
+
+	i := int(4)
+	b.a = &i
+	b2.a = &i
+	//b = nil
+	b.a = (*int)(unsafe.Pointer((uintptr(unsafe.Pointer(b.a)) ^ 1)))
+
+	cc := uintptr(unsafe.Pointer(b.a))
+	_ = cc
+	fmt.Printf("cc=0x%x b.a=%d b2.a=%d\n", cc, *b.a, *b2.a)
+	assert.True(t, false)
+
 }

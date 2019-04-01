@@ -144,52 +144,7 @@ func (l *{{.Name}}) Each(fn func(e *{{.Name}})) {
 	cur := l.Cursor()
 
 	for cur.Next() {
-		fn(cur.elm)
+		fn(l.ContainOf(cur.Pos))
 	}
 
 }
-
-type {{.Name}}Cursor struct {
-	IsLast bool
-	IsStarted    bool
-	elm    *{{.Name}}
-}
-
-func (l *{{.Name}}) Cursor() {{.Name}}Cursor {
-
-	return {{.Name}}Cursor{IsLast: false, elm: l.Front()}
-}
-
-
-func (cur *{{.Name}}Cursor) Next() (ok bool) {
-
-	defer func() {
-		if !cur.IsStarted {
-			cur.IsStarted = true
-		}
-	}()
-	skip_next := false
-	ok = true
-
-	if cur.IsStarted && cur.IsLast {
-		ok = false
-	}
-
-	if cur.elm.IsFirst() && !cur.IsStarted {
-		skip_next = ok
-
-	}
-	if cur.elm.IsLast() {
-		cur.IsLast = true
-		if !cur.elm.IsFirst() {
-			ok = false
-		}
-	}
-	if !skip_next {
-		cur.elm = cur.elm.Next()
-	}
-
-	return
-
-}
-
