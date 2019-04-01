@@ -293,15 +293,11 @@ func TestNextNew(t *testing.T) {
 				})
 				if found {
 					e.MarkForDelete()
-					fmt.Printf("\tmarking=%s\n", e.P())
 				}
 			}
 			//list.DeleteMarked()
 			if list.Len() != test.Count-len(test.marked) {
-				fmt.Println("--b--")
 				t.Errorf("missmatch len=%d cnt=%d marked=%d", list.Len(), test.Count, len(test.marked))
-				fmt.Println("--e--")
-				fmt.Printf("---all--\n%s\n--all-end--\n", list.DumpAllWithMark())
 			}
 			fmt.Printf("====END TEST(%s)===\n", test.Name)
 		})
@@ -426,7 +422,7 @@ func TestRaceCondtion(t *testing.T) {
 }
 func TestConcurrentAddAndDelete(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	const concurrent int = 30
+	const concurrent int = 100
 
 	var head list_head.ListHead
 	var other list_head.ListHead

@@ -70,19 +70,31 @@ func (head *ListHead) isDeleted() (deleted bool) {
 func (list *ListHead) DeleteMarked() {
 
 	head := list.Front()
+	//fmt.Printf("Info: DeleteMarked START %p\n", head)
 	elm := head
 	old := elm
 
 	for {
 		// mark
 		old = elm
-		elm = elm.next // FIXME: race condition 413, 85
+		//atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&elm)), unsafe.Pointer(elm.next)) // elm = elm.next // FIXME: race condition 413, 85
+		if !atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&elm)),
+			unsafe.Pointer(old),
+			unsafe.Pointer(elm.next)) {
+
+			fmt.Printf("WARN: fail cas for DeleteMarked loop\n")
+			continue
+		}
+
 		if old == elm {
+			//fmt.Printf("Info: DeleteMarked END %p\n", head)
 			return
 		}
 
 		if elm.isDeleted() {
 			elm.deleteDirect(old)
+			//fmt.Printf("Info: DeleteMarked STOP/RESTART %p\n", head)
 			elm = head
 			//}
 		}
@@ -346,8 +358,10 @@ func listAddWitCas(new, prev, next *ListHead) (err error) {
 func (head *ListHead) Add(new *ListHead) {
 	if MODE_CONCURRENT {
 		for true {
-			headNext := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next)))
-			err := listAddWitCas(new, head, (*ListHead)(headNext))
+			//err := listAddWitCas(new, head, (*ListHead)(headNext))
+			err := listAddWitCas(new,
+				head,
+				(*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next)))))
 			if err == nil {
 				break
 			}
@@ -425,10 +439,9 @@ func (l *ListHead) DeleteWithCas(prev *ListHead) (err error) {
 }
 
 func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
-	prev := l.prev // FIXME: race condition 452
-
+	prev := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)))) // prev := l.prev // FIXME: race condition 452
 	if oprev != nil {
-		prev = oprev
+		atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&prev)), unsafe.Pointer(oprev)) // prev = oprev
 	}
 
 	success = false
@@ -463,7 +476,11 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 		if l.isLastWithMarked() {
 			panic("????")
 		} else {
-			//l.Next().prev = l.prev
+			// prev.next.prev = l.prev
+			atomic.CompareAndSwapPointer(
+				(*unsafe.Pointer)(unsafe.Pointer(&prev.next.prev)),
+				unsafe.Pointer(l),
+				unsafe.Pointer(l.prev))
 
 			return
 		}
@@ -474,12 +491,19 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 
 func (l *ListHead) Pp() string {
 
-	return fmt.Sprintf("%p{prev: %p, next:%p, len: %d}", l, l.prev, l.next, l.Len()) // FIXME: race condition 350
+	return fmt.Sprintf("%p{prev: %p, next:%p, len: %d}",
+		l,
+		atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev))), //l.prev,
+		atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.next))), //l.next,
+		l.Len()) // FIXME: race condition 350
 }
 
 func (l *ListHead) P() string {
 
-	return fmt.Sprintf("%p{prev: %p, next:%p}", l, l.prev, l.next)
+	return fmt.Sprintf("%p{prev: %p, next:%p}",
+		l,
+		atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev))), //l.prev,
+		atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)))) //l.next)
 }
 
 func (l *ListHead) Delete() (result *ListHead) {
@@ -505,7 +529,8 @@ func (l *ListHead) Delete() (result *ListHead) {
 	*/
 	if MODE_CONCURRENT {
 		for true {
-			err := l.DeleteWithCas(l.prev)
+			//			err := l.DeleteWithCas(l.prev)
+			err := l.DeleteWithCas((*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)))))
 			if err == nil {
 				break
 			}
@@ -522,9 +547,10 @@ func (l *ListHead) Delete() (result *ListHead) {
 			l.next.prev, l.prev.next = l.prev, l.next
 		}
 	}
-	l.next, l.prev = l, l // FIXME: race condition 56
-
-	return l.next
+	// l.next, l.prev = l, l // FIXME: race condition 56
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)), unsafe.Pointer(l))
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)), unsafe.Pointer(l))
+	return (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)))) //l.next
 
 }
 
@@ -547,7 +573,9 @@ func (l *ListHead) isLastWithMarked() bool {
 }
 
 func (l *ListHead) IsFirst() bool {
-	return l.prev == l // FIXME: race condition ? :350, 358
+	prev := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)))
+
+	return prev == unsafe.Pointer(l) // l.prev == l // FIXME: race condition ? :350, 358
 }
 
 func (l *ListHead) Len() (cnt int) {
