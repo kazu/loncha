@@ -48,21 +48,13 @@ func (head *ListHead) PtrNext() **ListHead {
 	return &head.next
 }
 
-func IsMarked(elm *ListHead) (marked bool) {
+func (head *ListHead) DirectNext() *ListHead {
+	return head.next
+}
 
-	nptr := unsafe.Pointer(elm)
-	next := atomic.LoadPointer(&nptr)
-
-	if next == nil {
-		panic("isDelete next is nil")
-		return false
-	}
-
-	if uintptr(next)&1 > 0 {
-		return true
-	}
-	return false
-
+func (head *ListHead) PtrNext() **ListHead {
+	//return atomic.LoadPointer(&head.next)
+	return &head.next
 }
 
 func (head *ListHead) isDeleted() (deleted bool) {
