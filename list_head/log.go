@@ -1,5 +1,6 @@
 package list_head
 
+/*
 import (
 	"go.uber.org/zap"
 )
@@ -13,3 +14,4 @@ func Log(enableDebug bool) *zap.Logger {
 	log, _ := zap.NewProduction()
 	return log
 }
+*/
