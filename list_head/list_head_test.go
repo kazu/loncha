@@ -335,56 +335,98 @@ func TestNext1(t *testing.T) {
 
 func TestRaceCondtion(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	const concurrent int = 1001
-
-	var head list_head.ListHead
-	head.Init()
+	const concurrent int = 10000
 
 	makeElement := func() *list_head.ListHead {
 		e := &list_head.ListHead{}
 		e.Init()
 		return e
 	}
-	doneCh := make(chan bool, concurrent)
 
-	lists := []*list_head.ListHead{}
+	tests := []struct {
+		Name       string
+		Concurrent int
+		reader     func(i int, e *list_head.ListHead)
+		writer     func(i int, e *list_head.ListHead)
+	}{
+		{
+			Name:       "LoadPointer and Cas",
+			Concurrent: concurrent,
+			reader: func(i int, e *list_head.ListHead) {
+				if i > 1 {
 
-	for i := 0; i < concurrent; i++ {
-		e := makeElement()
-		head.Add(e)
-		lists = append(lists, e)
-	}
-	for i, e := range lists {
-
-		go func(i int, e *list_head.ListHead) {
-
-			if i > 1 {
-
-				next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(e.Prev().PtrNext())))
-				if uintptr(next)^1 > 0 {
-					fmt.Printf("markd %d\n", i-1)
+					next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(e.Prev().PtrNext())))
+					if uintptr(next)^1 > 0 {
+						fmt.Printf("markd %d\n", i-1)
+					}
 				}
-			}
-			//n := e.DirectNext()
-			if atomic.CompareAndSwapPointer(
-				(*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
-				unsafe.Pointer(e.DirectNext()),
-				unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1)) {
-				fmt.Printf("success %d\n", i)
-			}
+			},
+			writer: func(i int, e *list_head.ListHead) {
+				//n := e.DirectNext()
+				if atomic.CompareAndSwapPointer(
+					(*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
+					unsafe.Pointer(e.DirectNext()),
+					unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1)) {
+					fmt.Printf("success %d\n", i)
+				}
+			},
+		},
+		{
+			Name:       "LoadPointer and StorePointer",
+			Concurrent: concurrent,
+			reader: func(i int, e *list_head.ListHead) {
+				if i > 1 {
 
-			doneCh <- true
-		}(i, e)
-
+					next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(e.Prev().PtrNext())))
+					if uintptr(next)^1 > 0 {
+						fmt.Printf("markd %d\n", i-1)
+					}
+				}
+			},
+			writer: func(i int, e *list_head.ListHead) {
+				atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
+					unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1))
+			},
+		},
 	}
-	for i := 0; i < concurrent; i++ {
-		<-doneCh
+
+	for _, test := range tests {
+		t.Run(test.Name,
+			func(t *testing.T) {
+				var head list_head.ListHead
+				head.Init()
+
+				doneCh := make(chan bool, test.Concurrent)
+
+				lists := []*list_head.ListHead{}
+
+				for i := 0; i < test.Concurrent; i++ {
+					e := makeElement()
+					head.Add(e)
+					lists = append(lists, e)
+				}
+				for i, e := range lists {
+
+					go func(i int, e *list_head.ListHead) {
+
+						test.reader(i, e)
+						test.writer(i, e)
+
+						doneCh <- true
+					}(i, e)
+
+				}
+				for i := 0; i < test.Concurrent; i++ {
+					<-doneCh
+				}
+
+			})
 	}
 
 }
 func TestConcurrentAddAndDelete(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	const concurrent int = 20
+	const concurrent int = 30
 
 	var head list_head.ListHead
 	var other list_head.ListHead
