@@ -1,6 +1,8 @@
 package list_head
 
-import "go.uber.org/zap"
+import (
+	"go.uber.org/zap"
+)
 
 func Log(enableDebug bool) *zap.Logger {
 	if enableDebug {
