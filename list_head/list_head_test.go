@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 	"unsafe"
 
@@ -332,6 +333,55 @@ func TestNext1(t *testing.T) {
 
 }
 
+func TestRaceCondtion(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+	const concurrent int = 1001
+
+	var head list_head.ListHead
+	head.Init()
+
+	makeElement := func() *list_head.ListHead {
+		e := &list_head.ListHead{}
+		e.Init()
+		return e
+	}
+	doneCh := make(chan bool, concurrent)
+
+	lists := []*list_head.ListHead{}
+
+	for i := 0; i < concurrent; i++ {
+		e := makeElement()
+		head.Add(e)
+		lists = append(lists, e)
+	}
+	for i, e := range lists {
+
+		go func(i int, e *list_head.ListHead) {
+
+			if i > 1 {
+
+				next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(e.Prev().PtrNext())))
+				if uintptr(next)^1 > 0 {
+					fmt.Printf("markd %d\n", i-1)
+				}
+			}
+			//n := e.DirectNext()
+			if atomic.CompareAndSwapPointer(
+				(*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
+				unsafe.Pointer(e.DirectNext()),
+				unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1)) {
+				fmt.Printf("success %d\n", i)
+			}
+
+			doneCh <- true
+		}(i, e)
+
+	}
+	for i := 0; i < concurrent; i++ {
+		<-doneCh
+	}
+
+}
 func TestConcurrentAddAndDelete(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
 	const concurrent int = 20

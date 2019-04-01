@@ -31,24 +31,17 @@ func (head *ListHead) Init() {
 }
 
 func (head *ListHead) Prev() *ListHead {
-	return head.prev
+	prev := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev)))
+	return (*ListHead)(prev)
 }
 
-func IsMarked(elm *ListHead) (marked bool) {
+func (head *ListHead) DirectNext() *ListHead {
+	return head.next
+}
 
-	nptr := unsafe.Pointer(elm)
-	next := atomic.LoadPointer(&nptr)
-
-	if next == nil {
-		panic("isDelete next is nil")
-		return false
-	}
-
-	if uintptr(next)&1 > 0 {
-		return true
-	}
-	return false
-
+func (head *ListHead) PtrNext() **ListHead {
+	//return atomic.LoadPointer(&head.next)
+	return &head.next
 }
 
 func (head *ListHead) isDeleted() (deleted bool) {
@@ -60,7 +53,17 @@ func (head *ListHead) isDeleted() (deleted bool) {
 	if head == nil {
 		panic("isDelete invalid")
 	}
-	return IsMarked(head.next)
+	next := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next)))
+
+	if next == nil {
+		panic("isDelete next is nil")
+		return false
+	}
+
+	if uintptr(next)&1 > 0 {
+		return true
+	}
+	return false
 
 }
 
@@ -183,10 +186,12 @@ func (head *ListHead) next1() (nextElement *ListHead) {
 
 func (head *ListHead) next3() *ListHead {
 
-	if unsafe.Pointer(head) == unsafe.Pointer(head.next) {
+	headNext := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next)))
+
+	if unsafe.Pointer(head) == headNext {
 		return nil
 	}
-	if unsafe.Pointer(head) == unsafe.Pointer(uintptr(unsafe.Pointer(head.next))^1) {
+	if unsafe.Pointer(head) == unsafe.Pointer(uintptr(headNext)^1) {
 		return nil
 	}
 
@@ -200,11 +205,11 @@ func (head *ListHead) next3() *ListHead {
 		return nil
 
 	}
-	if head.next.isDeleted() {
+	if (*ListHead)(headNext).isDeleted() {
 		head.DeleteMarked()
 	}
 
-	return head.next
+	return (*ListHead)(headNext)
 
 }
 
@@ -307,14 +312,9 @@ func listAdd(new, prev, next *ListHead) {
 
 func listAddWitCas(new, prev, next *ListHead) (err error) {
 	if prev != next {
-		new.next = next
-		/*
-			newNext := unsafe.Pointer(new.next)
-			atomic.StorePointer(&newNext, unsafe.Pointer(next))
-			new.next = (*ListHead)(atomic.LoadPointer(&newNext))
-			if new.next != next {
-				panic(fmt.Sprintf("??? %v %v ", newNext, unsafe.Pointer(next)))
-			}*/
+		//new.next = next
+		atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&new.next)),
+			unsafe.Pointer(next))
 	}
 
 	if atomic.CompareAndSwapPointer(
@@ -323,11 +323,12 @@ func listAddWitCas(new, prev, next *ListHead) (err error) {
 		unsafe.Pointer(new)) {
 		if prev != next {
 			//next.prev, new.prev = new, prev
-			nextPrev := unsafe.Pointer(next.prev)
-			atomic.StorePointer(&nextPrev, unsafe.Pointer(new))
-			next.prev = (*ListHead)(atomic.LoadPointer(&nextPrev))
+			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&next.prev)),
+				unsafe.Pointer(new))
+			//next.prev = (*ListHead)(nextPrev)
 			new.prev = prev
 		} else {
+			//pPrev := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&next.prev)))
 			new.prev = prev
 		}
 		return
@@ -343,8 +344,8 @@ func listAddWitCas(new, prev, next *ListHead) (err error) {
 func (head *ListHead) Add(new *ListHead) {
 	if MODE_CONCURRENT {
 		for true {
-			headNext := unsafe.Pointer(head.next)
-			err := listAddWitCas(new, head, (*ListHead)(atomic.LoadPointer(&headNext)))
+			headNext := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next)))
+			err := listAddWitCas(new, head, (*ListHead)(headNext))
 			if err == nil {
 				break
 			}
