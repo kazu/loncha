@@ -236,19 +236,6 @@ func TestNext(t *testing.T) {
 
 }
 
-func ContainOf(head, elm *list_head.ListHead) bool {
-
-	c := head.Cursor()
-
-	for c.Next() {
-		if c.Pos == elm {
-			return true
-		}
-	}
-
-	return false
-}
-
 func TestNextNew(t *testing.T) {
 
 	tests := []struct {
@@ -347,7 +334,7 @@ func TestNext1(t *testing.T) {
 
 func TestConcurrentAddAndDelete(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	const concurrent int = 88
+	const concurrent int = 20
 
 	var head list_head.ListHead
 	var other list_head.ListHead
@@ -355,7 +342,7 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 	head.Init()
 	other.Init()
 
-	fmt.Printf("start head=%s other=%s\n", head.Pp(), other.Pp())
+	fmt.Printf("start head=%s other=%s\n", head.P(), other.P())
 
 	doneCh := make(chan bool, concurrent)
 
@@ -373,14 +360,14 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			e := &list_head.ListHead{}
 			e.Init()
 			fmt.Printf("idx=%5d Init e=%s len(head)=%d len(other)=%d\n",
-				i, e.Pp(), head.Len(), other.Len())
+				i, e.P(), head.Len(), other.Len())
 			len := head.Len()
 			head.Add(e)
 			if e.Front() != &head {
 				fmt.Printf("!!!!\n")
 			}
 
-			assert.True(t, ContainOf(&head, e))
+			assert.True(t, list_head.ContainOf(&head, e))
 
 			for i := 0; i < 3; i++ {
 				ee := &list_head.ListHead{}
@@ -390,7 +377,7 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 
 			//cond()
 			fmt.Printf("idx=%5d Add e=%s last=%5v before_len(head)=%d len(head)=%d len(other)=%d\n",
-				i, e.Pp(), e.IsLast(), len, head.Len(), other.Len())
+				i, e.P(), e.IsLast(), len, head.Len(), other.Len())
 			before_len := head.Len()
 			for {
 
@@ -401,21 +388,21 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 				//if e.DeleteWithCas(e.Prev()) == nil {
 				//	break
 				//}
-				fmt.Printf("delete all marked head=%s e=%s\n", head.Pp(), e.Pp())
+				fmt.Printf("delete all marked head=%s e=%s\n", head.Pp(), e.P())
 				head.DeleteMarked()
-				fmt.Printf("after marked gc head=%s e=%s\n", head.Pp(), e.Pp())
-				if !ContainOf(&head, e) {
+				fmt.Printf("after marked gc head=%s e=%s\n", head.Pp(), e.P())
+				if !list_head.ContainOf(&head, e) {
 					break
 				}
 				//fmt.Printf("????")
 			}
-			if ContainOf(&head, e) {
+			if list_head.ContainOf(&head, e) {
 				fmt.Printf("!!!!\n")
 			}
 			if before_len < head.Len() {
 				fmt.Printf("invalid increase? idx=%d \n", i)
 			}
-			assert.False(t, ContainOf(&head, e))
+			assert.False(t, list_head.ContainOf(&head, e))
 			assert.Equal(t, e, e.Next())
 			assert.Equal(t, e, e.Prev())
 
@@ -428,8 +415,8 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 
 			before_e := e.Pp()
 			other.Add(e)
-			assert.False(t, ContainOf(&head, e))
-			assert.True(t, ContainOf(&other, e))
+			assert.False(t, list_head.ContainOf(&head, e))
+			assert.True(t, list_head.ContainOf(&other, e))
 			//cond()
 
 			fmt.Printf("idx=%5d Move before_e=%s e=%s len(head)=%d len(other)=%d\n",

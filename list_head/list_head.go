@@ -9,13 +9,15 @@ package list_head
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync/atomic"
 	"unsafe"
 )
 
 var (
-	MODE_CONCURRENT = false
+	MODE_CONCURRENT      = false
+	PANIC_NEXT_IS_MARKED = false
 )
 
 type ListHead struct {
@@ -32,6 +34,23 @@ func (head *ListHead) Prev() *ListHead {
 	return head.prev
 }
 
+func IsMarked(elm *ListHead) (marked bool) {
+
+	nptr := unsafe.Pointer(elm)
+	next := atomic.LoadPointer(&nptr)
+
+	if next == nil {
+		panic("isDelete next is nil")
+		return false
+	}
+
+	if uintptr(next)&1 > 0 {
+		return true
+	}
+	return false
+
+}
+
 func (head *ListHead) isDeleted() (deleted bool) {
 	/*defer func() {
 		if perr := recover(); perr != nil {
@@ -41,17 +60,8 @@ func (head *ListHead) isDeleted() (deleted bool) {
 	if head == nil {
 		panic("isDelete invalid")
 	}
-	nptr := unsafe.Pointer(head.next)
-	next := atomic.LoadPointer(&nptr)
-	if next == nil {
-		return false
-	}
+	return IsMarked(head.next)
 
-	if uintptr(next)&1 > 0 {
-		//if ptr&1 != 0 {
-		return true
-	}
-	return false
 }
 
 func (list *ListHead) DeleteMarked() {
@@ -93,7 +103,7 @@ func (head *ListHead) Next1() (nextElement *ListHead) {
 			nextElement = head
 		}
 
-		fmt.Printf("\thead(%s).next1() => %s\n", head.P(), nextElement.P())
+		//fmt.Printf("\thead(%s).next1() => %s\n", head.P(), nextElement.P())
 
 	}()
 
@@ -181,17 +191,20 @@ func (head *ListHead) next3() *ListHead {
 	}
 
 	if head.isDeleted() {
-		panic("next3 must not isDeleted()")
+		if PANIC_NEXT_IS_MARKED {
+			head.isDeleted()
+			panic("next3 must not isDeleted()")
+		}
+
+		fmt.Fprintf(os.Stderr, "WARN: return marked value because next is marked\n")
+		return nil
+
 	}
 	if head.next.isDeleted() {
 		head.DeleteMarked()
 	}
 
 	return head.next
-
-	//	next := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(head.next)) ^ 1)).next3()
-
-	//return next
 
 }
 
@@ -295,6 +308,13 @@ func listAdd(new, prev, next *ListHead) {
 func listAddWitCas(new, prev, next *ListHead) (err error) {
 	if prev != next {
 		new.next = next
+		/*
+			newNext := unsafe.Pointer(new.next)
+			atomic.StorePointer(&newNext, unsafe.Pointer(next))
+			new.next = (*ListHead)(atomic.LoadPointer(&newNext))
+			if new.next != next {
+				panic(fmt.Sprintf("??? %v %v ", newNext, unsafe.Pointer(next)))
+			}*/
 	}
 
 	if atomic.CompareAndSwapPointer(
@@ -302,7 +322,11 @@ func listAddWitCas(new, prev, next *ListHead) (err error) {
 		unsafe.Pointer(next),
 		unsafe.Pointer(new)) {
 		if prev != next {
-			next.prev, new.prev = new, prev
+			//next.prev, new.prev = new, prev
+			nextPrev := unsafe.Pointer(next.prev)
+			atomic.StorePointer(&nextPrev, unsafe.Pointer(new))
+			next.prev = (*ListHead)(atomic.LoadPointer(&nextPrev))
+			new.prev = prev
 		} else {
 			new.prev = prev
 		}
@@ -319,7 +343,8 @@ func listAddWitCas(new, prev, next *ListHead) (err error) {
 func (head *ListHead) Add(new *ListHead) {
 	if MODE_CONCURRENT {
 		for true {
-			err := listAddWitCas(new, head, head.next)
+			headNext := unsafe.Pointer(head.next)
+			err := listAddWitCas(new, head, (*ListHead)(atomic.LoadPointer(&headNext)))
 			if err == nil {
 				break
 			}
@@ -345,12 +370,12 @@ func (l *ListHead) DeleteWithCas(prev *ListHead) (err error) {
 	use_mark := true
 
 	head := l.Front()
-
+	_ = head
 	defer func() {
 		if err == nil {
-			if ContainOf(head, l) {
-				panic("????!!!")
-			}
+			//if ContainOf(head, l) {
+			//	panic("????!!!")
+			//}
 		}
 	}()
 
@@ -523,6 +548,10 @@ func (l *ListHead) Len() (cnt int) {
 	cnt = 0
 	for s := l; s.Prev() != s; s = s.Prev() {
 		cnt++
+	}
+
+	if l.isDeleted() {
+		return cnt
 	}
 
 	for s := l; s.Next() != s; s = s.Next() {
