@@ -525,11 +525,6 @@ func (l *ListHead) P() string {
 		atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)))) //l.next)
 }
 
-func (l *ListHead) P() string {
-
-	return fmt.Sprintf("%p{prev: %p, next:%p}", l, l.prev, l.next)
-}
-
 func (l *ListHead) Delete() (result *ListHead) {
 	/*
 		defer func() {
