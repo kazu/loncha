@@ -76,7 +76,7 @@ func (list *ListHead) DeleteMarked() {
 	for {
 		// mark
 		old = elm
-		elm = elm.next
+		elm = elm.next // FIXME: race condition 413, 85
 		if old == elm {
 			return
 		}
@@ -325,11 +325,13 @@ func listAddWitCas(new, prev, next *ListHead) (err error) {
 			//next.prev, new.prev = new, prev
 			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&next.prev)),
 				unsafe.Pointer(new))
-			//next.prev = (*ListHead)(nextPrev)
-			new.prev = prev
+			//new.prev = prev
+			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&new.prev)),
+				unsafe.Pointer(prev))
 		} else {
-			//pPrev := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&next.prev)))
-			new.prev = prev
+			//new.prev = prev
+			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&new.prev)),
+				unsafe.Pointer(prev))
 		}
 		return
 	}
@@ -402,7 +404,7 @@ func (l *ListHead) DeleteWithCas(prev *ListHead) (err error) {
 		return errors.New("first element cannot delete")
 	}
 	if use_mark {
-		err = l.MarkForDelete()
+		err = l.MarkForDelete() // FIXME: race condition 79
 		if err != nil {
 			return err
 		}
@@ -423,7 +425,7 @@ func (l *ListHead) DeleteWithCas(prev *ListHead) (err error) {
 }
 
 func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
-	prev := l.prev
+	prev := l.prev // FIXME: race condition 452
 
 	if oprev != nil {
 		prev = oprev
@@ -432,7 +434,11 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 	success = false
 	defer func() {
 		if success {
-			l.next, l.prev = l, l
+			//l.next, l.prev = l, l
+			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)),
+				unsafe.Pointer(l))
+			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)),
+				unsafe.Pointer(l))
 		}
 	}()
 
@@ -468,7 +474,7 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 
 func (l *ListHead) Pp() string {
 
-	return fmt.Sprintf("%p{prev: %p, next:%p, len: %d}", l, l.prev, l.next, l.Len())
+	return fmt.Sprintf("%p{prev: %p, next:%p, len: %d}", l, l.prev, l.next, l.Len()) // FIXME: race condition 350
 }
 
 func (l *ListHead) P() string {
@@ -516,7 +522,7 @@ func (l *ListHead) Delete() (result *ListHead) {
 			l.next.prev, l.prev.next = l.prev, l.next
 		}
 	}
-	l.next, l.prev = l, l
+	l.next, l.prev = l, l // FIXME: race condition 56
 
 	return l.next
 
@@ -541,7 +547,7 @@ func (l *ListHead) isLastWithMarked() bool {
 }
 
 func (l *ListHead) IsFirst() bool {
-	return l.prev == l
+	return l.prev == l // FIXME: race condition ? :350, 358
 }
 
 func (l *ListHead) Len() (cnt int) {
