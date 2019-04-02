@@ -16,13 +16,17 @@ import (
 )
 
 var (
-	MODE_CONCURRENT      = false
-	PANIC_NEXT_IS_MARKED = false
+	MODE_CONCURRENT      bool = false
+	PANIC_NEXT_IS_MARKED bool = false
 )
 
 type ListHead struct {
 	prev *ListHead
 	next *ListHead
+}
+
+func GetConcurrentMode() bool {
+	return MODE_CONCURRENT
 }
 
 func (head *ListHead) Init() {
