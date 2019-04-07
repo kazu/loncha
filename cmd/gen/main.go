@@ -31,7 +31,7 @@ func main() {
 
 	sinfos, err := structer.StrcutInfos(src, pkgname)
 	if err != nil || len(sinfos) == 0 {
-		fmt.Fprintf(os.Stderr, "err=%s skip parsing file", err)
+		fmt.Fprintf(os.Stderr, "err=%s skip parsing file\n", err)
 		sinfos = append(sinfos, structer.StructInfo{
 			PkgName: pkgname,
 			Name:    structName,
@@ -40,7 +40,7 @@ func main() {
 
 	for _, info := range sinfos {
 		if info.Name != structName {
-			fmt.Fprintf(os.Stderr, "WARN: skip "+info.Name)
+			fmt.Fprintf(os.Stderr, "WARN: skip %s \n", info.Name)
 			continue
 		}
 		newSrc, err := sinfos[0].FromTemplate(template)

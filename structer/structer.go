@@ -79,7 +79,7 @@ func StrcutInfos(src string, pkgname string) (infos []StructInfo, err error) {
 		return
 	}
 
-	Logger.Info("Package info",
+	Logger.Debug("Package info",
 		zap.String("Package", pkg.Path()),
 		zap.String("Name", pkg.Name()),
 		zap.Reflect("Imports", pkg.Imports()),
