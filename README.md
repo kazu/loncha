@@ -74,6 +74,6 @@ type Player struct {
 generate linked-list
 
 ```
-    gen player.go game_object  Player container_list/container_list.gtpl > player_list.go
+    gen game_object player.go Player container_list/container_list.gtpl > player_list.go
     cat player_list.go
 ```

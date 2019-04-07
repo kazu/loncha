@@ -17,13 +17,13 @@ func SetupLogger() {
 }
 
 func main() {
-	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "gen src pkgname struct_name template src="+os.Args[1])
+	if len(os.Args) < 5 {
+		fmt.Fprintf(os.Stderr, "gen pkgname src struct_name template src="+os.Args[1])
 		return
 	}
 
-	src := os.Args[1]
-	pkgname := os.Args[2]
+	pkgname := os.Args[1]
+	src := os.Args[2]
 	structName := os.Args[3]
 	template := os.Args[4]
 
