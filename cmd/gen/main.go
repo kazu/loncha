@@ -51,7 +51,7 @@ func main() {
 		newSrc, err := sinfos[0].FromTemplate(template)
 		if err == nil {
 			if len(output) > 0 {
-				ioutil.WriteFile(output, []byte(newSrc), 644)
+				ioutil.WriteFile(output, []byte(newSrc), 0644)
 			} else {
 				fmt.Print(newSrc)
 			}
