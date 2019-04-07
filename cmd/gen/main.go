@@ -48,7 +48,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "WARN: skip %s \n", info.Name)
 			continue
 		}
-		newSrc, err := sinfos[0].FromTemplate(template)
+		newSrc, err := info.FromTemplate(template)
 		if err == nil {
 			if len(output) > 0 {
 				ioutil.WriteFile(output, []byte(newSrc), 0644)
