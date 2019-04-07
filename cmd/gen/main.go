@@ -18,7 +18,7 @@ func SetupLogger() {
 
 func main() {
 	if len(os.Args) < 4 {
-		fmt.Fprint(os.Stderr, "gen src pkgname struct_name template")
+		fmt.Fprintf(os.Stderr, "gen src pkgname struct_name template src="+os.Args[1])
 		return
 	}
 
@@ -30,11 +30,17 @@ func main() {
 	SetupLogger()
 
 	sinfos, err := structer.StrcutInfos(src, pkgname)
-	if err != nil {
-		fmt.Fprint(os.Stderr, err)
+	if err != nil || len(sinfos) == 0 {
+		fmt.Fprintf(os.Stderr, "err=%s skip parsing file", err)
+		sinfos = append(sinfos, structer.StructInfo{
+			PkgName: pkgname,
+			Name:    structName,
+		})
 	}
+
 	for _, info := range sinfos {
 		if info.Name != structName {
+			fmt.Fprintf(os.Stderr, "WARN: skip "+info.Name)
 			continue
 		}
 		newSrc, err := sinfos[0].FromTemplate(template)
@@ -43,6 +49,7 @@ func main() {
 		} else {
 			fmt.Fprint(os.Stderr, err)
 		}
+		return
 	}
 
 }

@@ -1,7 +1,6 @@
 package structer
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/importer"
@@ -10,7 +9,11 @@ import (
 	"go/types"
 	"io"
 	"io/ioutil"
+	"path"
+	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"text/template"
 
@@ -31,29 +34,56 @@ func SetupLogger() {
 	Logger, _ = zap.NewProduction()
 }
 
+func LoadAstf(dir string, fset *token.FileSet) (astfs []*ast.File, err error) {
+
+	files, err := filepath.Glob(filepath.Join(dir, "*"))
+	if err != nil {
+		return
+	}
+
+	for _, file := range files {
+		if filepath.Ext(file) != ".go" {
+			continue
+		}
+		if match, _ := filepath.Match("*_test.go", filepath.Base(file)); match {
+			continue
+		}
+
+		astf, err := parser.ParseFile(fset, file, LoadFile(file), 0)
+		if err != nil {
+			return nil, err
+		}
+		astfs = append(astfs, astf)
+	}
+	return
+}
+
 func StrcutInfos(src string, pkgname string) (infos []StructInfo, err error) {
 
 	SetupLogger()
 
 	fset := token.NewFileSet()
 
-	astf, err := parser.ParseFile(fset, src, LoadFile(src), 0)
+	//astf, _ := parser.ParseFile(fset, src, LoadFile(src), 0)
+	astfs, err := LoadAstf(path.Dir(src), fset)
 	if err != nil {
+		err = errors.Wrap(err, "parse fail")
 		return
 	}
 
 	conf := types.Config{Importer: importer.For("source", nil), DisableUnusedImportCheck: true}
-	pkg, err := conf.Check(pkgname, fset, []*ast.File{astf}, nil)
+	pkg, err := conf.Check(pkgname, fset, astfs, nil)
 	_ = pkg
 	if err != nil {
-		err = errors.New(err.Error() + "\n" + spew.Sdump(pkg))
+		err = errors.Wrap(err, fmt.Sprintf("fail check\n\tastfs=%+v\n\tfset=%+v\n\tpkg=%s\n\n", astfs, fset, spew.Sdump(pkg)))
 		return
 	}
 
-	Logger.Debug("Package info",
+	Logger.Info("Package info",
 		zap.String("Package", pkg.Path()),
 		zap.String("Name", pkg.Name()),
 		zap.Reflect("Imports", pkg.Imports()),
+		zap.Strings("Scope.Names", pkg.Scope().Names()),
 		zap.String("Scope", pkg.Scope().String()))
 
 	scope := pkg.Scope()
@@ -62,7 +92,10 @@ func StrcutInfos(src string, pkgname string) (infos []StructInfo, err error) {
 		obj := scope.Lookup(name)
 		_ = obj
 
-		internal := obj.Type().Underlying().(*types.Struct)
+		internal, found_struct := obj.Type().Underlying().(*types.Struct)
+		if !found_struct {
+			continue
+		}
 		sinfo := StructInfo{
 			PkgName: pkgname,
 			Name:    obj.Name(),

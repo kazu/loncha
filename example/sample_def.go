@@ -5,7 +5,8 @@ import (
 )
 
 type Sample struct {
-	ID   int
-	Name string
+	ID     int
+	Name   string
+	Parent *SampleParent
 	list_head.ListHead
 }
