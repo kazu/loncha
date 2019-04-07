@@ -76,4 +76,9 @@ generate linked-list
 ```
     gen game_object player.go Player container_list/container_list.gtpl > player_list.go
     cat player_list.go
+
+    OR
+
+    gen game_object player.go Player container_list/container_list.gtpl player_list.go
+    cat player_list.go
 ```

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/kazu/lonacha/structer"
@@ -26,6 +27,10 @@ func main() {
 	src := os.Args[2]
 	structName := os.Args[3]
 	template := os.Args[4]
+	output := ""
+	if len(os.Args) > 5 {
+		output = os.Args[5]
+	}
 
 	SetupLogger()
 
@@ -45,7 +50,11 @@ func main() {
 		}
 		newSrc, err := sinfos[0].FromTemplate(template)
 		if err == nil {
-			fmt.Print(newSrc)
+			if len(output) > 0 {
+				ioutil.WriteFile(output, []byte(newSrc), 644)
+			} else {
+				fmt.Print(newSrc)
+			}
 		} else {
 			fmt.Fprint(os.Stderr, err)
 		}
