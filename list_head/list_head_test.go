@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/kazu/lonacha"
-	"github.com/kazu/lonacha/list_head"
+	"github.com/kazu/loncha"
+	"github.com/kazu/loncha/list_head"
 )
 
 func TestInit(t *testing.T) {
@@ -288,7 +288,7 @@ func TestNextNew(t *testing.T) {
 				e := makeElement()
 				list.Add(e)
 
-				found := lonacha.Contain(&test.marked, func(idx int) bool {
+				found := loncha.Contain(&test.marked, func(idx int) bool {
 					return test.marked[idx] == i
 				})
 				if found {

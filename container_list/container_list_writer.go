@@ -26,7 +26,7 @@ func (sw *ContainerListWriter) Name() string {
 func (sw *ContainerListWriter) Imports(t typewriter.Type) (result []typewriter.ImportSpec) {
 	return []typewriter.ImportSpec{
 		{Path: "unsafe"},
-		{Path: "github.com/kazu/lonacha/list_head"},
+		{Path: "github.com/kazu/loncha/list_head"},
 	}
 }
 func (sw *ContainerListWriter) Write(w io.Writer, t typewriter.Type) error {

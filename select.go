@@ -1,4 +1,4 @@
-package lonacha
+package loncha
 
 import (
 	"errors"

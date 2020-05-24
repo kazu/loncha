@@ -1,7 +1,7 @@
 package example
 
 import (
-	"github.com/kazu/lonacha/list_head"
+	"github.com/kazu/loncha/list_head"
 )
 
 type Sample struct {

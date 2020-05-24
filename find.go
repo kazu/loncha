@@ -5,11 +5,11 @@
 // Package finder for slice.
 //
 // To Find from slice: (list is slice)
-//   lonacha.Find(&list, func(i int) {
+//   loncha.Find(&list, func(i int) {
 //	 	return list[i].ID == 555
 //}
 
-package lonacha
+package loncha
 
 // Find is value of slice if fn is true. if slice is not pointer of slice or empty, return error
 func Find(slice interface{}, fn CondFunc) (interface{}, error) {

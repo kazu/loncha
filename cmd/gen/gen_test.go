@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/kazu/lonacha/structer"
+	"github.com/kazu/loncha/structer"
 	"github.com/stretchr/testify/assert"
 )
 

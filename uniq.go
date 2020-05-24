@@ -5,11 +5,11 @@
 // Package DeDuplication for slice.
 //
 // To Find from slice: (list is slice)
-//   lonacha.Uniq(&list, func(i,j int) {
+//   loncha.Uniq(&list, func(i,j int) {
 //	 	return list[i].ID == list[j].ID
 //}
 
-package lonacha
+package loncha
 
 import (
 	"reflect"

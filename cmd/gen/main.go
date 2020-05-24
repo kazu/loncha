@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/kazu/lonacha/structer"
+	"github.com/kazu/loncha/structer"
 	"go.uber.org/zap"
 )
 

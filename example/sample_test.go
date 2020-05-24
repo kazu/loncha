@@ -3,9 +3,9 @@ package example_test
 import (
 	"testing"
 
-	"github.com/kazu/lonacha"
-	"github.com/kazu/lonacha/example"
-	"github.com/kazu/lonacha/list_head"
+	"github.com/kazu/loncha"
+	"github.com/kazu/loncha/example"
+	"github.com/kazu/loncha/list_head"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -89,7 +89,7 @@ func TestDelete(t *testing.T) {
 				e := makeElement()
 				list.Add(e)
 
-				found := lonacha.Contain(&test.deletes, func(idx int) bool {
+				found := loncha.Contain(&test.deletes, func(idx int) bool {
 					return test.deletes[idx] == i
 				})
 				if found {

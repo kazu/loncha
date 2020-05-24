@@ -1,4 +1,4 @@
-module github.com/kazu/lonacha
+module github.com/kazu/loncha
 
 require (
 	github.com/clipperhouse/fsnotify v1.1.0 // indirect
@@ -12,4 +12,4 @@ require (
 	golang.org/x/tools v0.0.0-20190308174544-00c44ba9c14f // indirect
 )
 
-replace github.com/kazu/lonacha => ./
+replace github.com/kazu/loncha => ./

@@ -1,4 +1,4 @@
-# lonacha
+# loncha
 A high-performance slice Utilities for Go.
 * high-perfirmance slice filter/finder.
 * generator for slice and linked-list 
@@ -7,11 +7,11 @@ A high-performance slice Utilities for Go.
 
 ### slice Utility 
 
-    go get github.com/kazu/lonacha
+    go get github.com/kazu/loncha
 
 ### generator 
 
-    go get github.com/kazu/lonacha/cmd/gen
+    go get github.com/kazu/loncha/cmd/gen
 
 ## QuickStart 
 
@@ -20,7 +20,7 @@ A high-performance slice Utilities for Go.
 slice utility dosent use reflect/interface operation.
 
 ```
-    import "github.com/kazu/lonacha"
+    import "github.com/kazu/loncha"
 
     type GameObject struct {
         ID int
@@ -32,15 +32,15 @@ slice utility dosent use reflect/interface operation.
 
     var objs []GameObject
 
-    lonacha.Find(&objs, func(i int) bool {
+    loncha.Find(&objs, func(i int) bool {
         return objs[i].ID == 6
     } 
 
-    lonacha.Filter(&objs, func(i int) bool {
+    loncha.Filter(&objs, func(i int) bool {
         return objs[i].ID == 12
     } 
 
-	lonacha.Delete(&objs, func(i int) bool {
+	loncha.Delete(&objs, func(i int) bool {
 		return objs[i].ID == 555
 	})
 
@@ -49,7 +49,7 @@ slice utility dosent use reflect/interface operation.
 		return slice[i].ID < 50
 	})
 
-    err = lonacha.Shuffle(objs, 2)
+    err = loncha.Shuffle(objs, 2)
 ```
 
 ## generate double-linked list of linux kernel list_head type
@@ -60,7 +60,7 @@ define base struct
 package game_object
 
 import (
-    "github.com/kazu/lonacha/list_head"
+    "github.com/kazu/loncha/list_head"
 
 
 type Player struct {

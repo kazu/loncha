@@ -3,7 +3,7 @@ package structer_test
 import (
 	"testing"
 
-	"github.com/kazu/lonacha/structer"
+	"github.com/kazu/loncha/structer"
 )
 
 func TestStructInfo(t *testing.T) {

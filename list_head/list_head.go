@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package lonacha/list_head is like a kernel's LIST_HEAD
-// list_head is used by lonacha/gen/containers_list
+// Package loncha/list_head is like a kernel's LIST_HEAD
+// list_head is used by loncha/gen/containers_list
 package list_head
 
 import (

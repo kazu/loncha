@@ -1,4 +1,4 @@
-package lonacha
+package loncha
 
 import (
 	"fmt"
@@ -229,7 +229,7 @@ func BenchmarkFilter(b *testing.B) {
 	orig := MakeSliceSample()
 
 	b.ResetTimer()
-	b.Run("lonacha.Filter", func(b *testing.B) {
+	b.Run("loncha.Filter", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
@@ -243,7 +243,7 @@ func BenchmarkFilter(b *testing.B) {
 
 	pObjs := MakePtrSliceSample()
 	b.ResetTimer()
-	b.Run("lonacha.Filter pointer", func(b *testing.B) {
+	b.Run("loncha.Filter pointer", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]*Element, 0, len(pObjs))
@@ -273,9 +273,9 @@ func BenchmarkFilter(b *testing.B) {
 
 }
 
-// BenchmarkUniq/lonacha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
-// BenchmarkUniq/lonacha.UniqWithSort-16 	    			1000	   2237924 ns/op	     256 B/op	       7 allocs/op
-// BenchmarkUniq/lonacha.UniqWithSort(sort)-16         	    1000	    260283 ns/op	     144 B/op	       4 allocs/op
+// BenchmarkUniq/loncha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
+// BenchmarkUniq/loncha.UniqWithSort-16 	    			1000	   2237924 ns/op	     256 B/op	       7 allocs/op
+// BenchmarkUniq/loncha.UniqWithSort(sort)-16         	    1000	    260283 ns/op	     144 B/op	       4 allocs/op
 // BenchmarkUniq/hand_Uniq-16                          	    1000	    427765 ns/op	  442642 B/op	       8 allocs/op
 // BenchmarkUniq/hand_Uniq_iface-16                    	    1000	    808895 ns/op	  632225 B/op	    6322 allocs/op
 // BenchmarkUniq/go-funk.Uniq-16                       	    1000	   1708396 ns/op	  655968 B/op	   10004 allocs/op
@@ -284,7 +284,7 @@ func BenchmarkUniq(b *testing.B) {
 	orig := MakeSliceSample()
 
 	b.ResetTimer()
-	b.Run("lonacha.UniqWithSort(before sort)", func(b *testing.B) {
+	b.Run("loncha.UniqWithSort(before sort)", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
@@ -300,7 +300,7 @@ func BenchmarkUniq(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	b.Run("lonacha.UniqWithSort", func(b *testing.B) {
+	b.Run("loncha.UniqWithSort", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
@@ -313,7 +313,7 @@ func BenchmarkUniq(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	b.Run("lonacha.Uniq", func(b *testing.B) {
+	b.Run("loncha.Uniq", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
@@ -325,7 +325,7 @@ func BenchmarkUniq(b *testing.B) {
 		}
 	})
 
-	b.Run("lonacha.Uniq2", func(b *testing.B) {
+	b.Run("loncha.Uniq2", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
@@ -389,7 +389,7 @@ func BenchmarkSelect(b *testing.B) {
 	orig := MakeSliceSample()
 
 	b.ResetTimer()
-	b.Run("lonacha.Select", func(b *testing.B) {
+	b.Run("loncha.Select", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
@@ -402,7 +402,7 @@ func BenchmarkSelect(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	b.Run("lonacha.FilterAndCopy", func(b *testing.B) {
+	b.Run("loncha.FilterAndCopy", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
