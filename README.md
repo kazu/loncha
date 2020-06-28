@@ -98,5 +98,9 @@ generate linked-list
 ### loncha.Filter vs go-funk.Filter
 
 ```
-
+BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
+BenchmarkFilter/loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFilter/hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op
+BenchmarkFilter/go-funk.Filter-16        	     100	   2370492 ns/op	  640135 B/op	   20004 allocs/op
+BenchmarkFilter/go-funk.Filter_pointer-16        100	      1048 ns/op	      64 B/op	       2 allocs/op
 ```
