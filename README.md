@@ -87,12 +87,12 @@ generate linked-list
 
 ### loncha.Uniq vs hand Uniq vs go-funk.Uniq
 ```
-// BenchmarkUniq/loncha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
-// BenchmarkUniq/loncha.UniqWithSort-16 	    			1000	   2237924 ns/op	     256 B/op	       7 allocs/op
-// BenchmarkUniq/loncha.UniqWithSort(sort)-16         	    1000	    260283 ns/op	     144 B/op	       4 allocs/op
-// BenchmarkUniq/hand_Uniq-16                          	    1000	    427765 ns/op	  442642 B/op	       8 allocs/op
-// BenchmarkUniq/hand_Uniq_iface-16                    	    1000	    808895 ns/op	  632225 B/op	    6322 allocs/op
-// BenchmarkUniq/go-funk.Uniq-16                       	    1000	   1708396 ns/op	  655968 B/op	   10004 allocs/op
+BenchmarkUniq/loncha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
+BenchmarkUniq/loncha.UniqWithSort-16 	    			1000	   2237924 ns/op	     256 B/op	       7 allocs/op
+BenchmarkUniq/loncha.UniqWithSort(sort)-16         	    1000	    260283 ns/op	     144 B/op	       4 allocs/op
+BenchmarkUniq/hand_Uniq-16                          	1000	    427765 ns/op	  442642 B/op	       8 allocs/op
+BenchmarkUniq/hand_Uniq_iface-16                    	1000	    808895 ns/op	  632225 B/op	    6322 allocs/op
+BenchmarkUniq/go-funk.Uniq-16                       	1000	   1708396 ns/op	  655968 B/op	   10004 allocs/op
 ```
 
 ### loncha.Filter vs go-funk.Filter
