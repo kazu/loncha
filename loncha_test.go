@@ -224,6 +224,11 @@ func TestShuffle(t *testing.T) {
 	assert.NotEqual(t, slice[0].ID, a.ID)
 }
 
+// BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
+// BenchmarkFilter/loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkFilter/hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op
+// BenchmarkFilter/go-funk.Filter-16        	     100	   2370492 ns/op	  640135 B/op	   20004 allocs/op
+// BenchmarkFilter/go-funk.Filter_pointer-16         100	      1048 ns/op	      64 B/op	       2 allocs/op
 func BenchmarkFilter(b *testing.B) {
 
 	orig := MakeSliceSample()
@@ -271,6 +276,31 @@ func BenchmarkFilter(b *testing.B) {
 		}
 	})
 
+	b.ResetTimer()
+	b.Run("go-funk.Filter", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			funk.Filter(objs, func(e Element) bool {
+				return e.ID == 555
+			})
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("go-funk.Filter pointer", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]*Element, 0, len(pObjs))
+			copy(objs, pObjs)
+			b.StartTimer()
+			funk.Filter(objs, func(e *Element) bool {
+				return e.ID == 555
+			})
+		}
+	})
 }
 
 // BenchmarkUniq/loncha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
