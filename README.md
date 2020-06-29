@@ -87,20 +87,20 @@ generate linked-list
 
 ### loncha.Uniq vs hand Uniq vs go-funk.Uniq
 ```
-BenchmarkUniq/loncha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
-BenchmarkUniq/loncha.UniqWithSort-16 	    			1000	   2237924 ns/op	     256 B/op	       7 allocs/op
-BenchmarkUniq/loncha.UniqWithSort(sort)-16         	    1000	    260283 ns/op	     144 B/op	       4 allocs/op
-BenchmarkUniq/hand_Uniq-16                          	1000	    427765 ns/op	  442642 B/op	       8 allocs/op
-BenchmarkUniq/hand_Uniq_iface-16                    	1000	    808895 ns/op	  632225 B/op	    6322 allocs/op
-BenchmarkUniq/go-funk.Uniq-16                       	1000	   1708396 ns/op	  655968 B/op	   10004 allocs/op
+loncha.Uniq-16         	    			1000	    997543 ns/op	  548480 B/op	   16324 allocs/op
+loncha.UniqWithSort-16 	    			1000	   2237924 ns/op	     256 B/op	       7 allocs/op
+loncha.UniqWithSort(sort)-16         	1000	    260283 ns/op	     144 B/op	       4 allocs/op
+hand_Uniq-16                          	1000	    427765 ns/op	  442642 B/op	       8 allocs/op
+hand_Uniq_iface-16                    	1000	    808895 ns/op	  632225 B/op	    6322 allocs/op
+go-funk.Uniq-16                       	1000	   1708396 ns/op	  655968 B/op	   10004 allocs/op
 ```
 
 ### loncha.Filter vs go-funk.Filter
 
 ```
-BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
-BenchmarkFilter/loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
-BenchmarkFilter/hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op
-BenchmarkFilter/go-funk.Filter-16        	     100	   2370492 ns/op	  640135 B/op	   20004 allocs/op
-BenchmarkFilter/go-funk.Filter_pointer-16        100	      1048 ns/op	      64 B/op	       2 allocs/op
+loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
+loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
+hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op
+go-funk.Filter-16        	     100	   2370492 ns/op	  640135 B/op	   20004 allocs/op
+go-funk.Filter_pointer-16        100	      1048 ns/op	      64 B/op	       2 allocs/op
 ```
