@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	ERR_SLICE_TYPE error = errors.New("parameter must be pointer of slice")
+	ERR_SLICE_TYPE error = errors.New("parameter must be slice or pointer of slice")
+	ERR_POINTER_SLICE_TYPE error = errors.New("parameter must be pointer of slice")
 	ERR_NOT_FOUND  error = errors.New("data is not found")
 )
 
@@ -33,7 +34,7 @@ func sliceElm2Reflect(slice interface{}) (reflect.Value, error) {
 	}
 
 	if rv.Kind() != reflect.Ptr {
-		return reflect.ValueOf(nil), ERR_SLICE_TYPE
+		return reflect.ValueOf(nil), ERR_POINTER_SLICE_TYPE
 	}
 
 	if rv.Elem().Kind() != reflect.Slice {
@@ -44,13 +45,14 @@ func sliceElm2Reflect(slice interface{}) (reflect.Value, error) {
 
 func Select(slice interface{}, fn CondFunc) (interface{}, error) {
 
-	rv, err := slice2Reflect(slice)
+	rv, err := sliceElm2Reflect(slice)
+
 	if err != nil {
 		return nil, err
 	}
-	newSlice := reflect.MakeSlice(rv.Elem().Type(), rv.Elem().Len(), rv.Elem().Cap())
+	newSlice := reflect.MakeSlice(rv.Type(), rv.Len(), rv.Cap())
 
-	reflect.Copy(newSlice, rv.Elem())
+	reflect.Copy(newSlice, rv)
 
 	ptr := reflect.New(newSlice.Type())
 	ptr.Elem().Set(newSlice)

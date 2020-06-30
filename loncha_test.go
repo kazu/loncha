@@ -123,6 +123,16 @@ func TestFind(t *testing.T) {
 	elm := data.(Element)
 	assert.True(t, elm.ID == id, elm)
 
+	nSlice = MakeSliceSample()
+	id = nSlice[50].ID
+	data, err = Find(nSlice, func(i int) bool {
+		return nSlice[i].ID == id
+	})
+
+	assert.NoError(t, err)
+	elm = data.(Element)
+	assert.True(t, elm.ID == id, elm)
+
 }
 
 func TestFilter(t *testing.T) {
@@ -197,6 +207,21 @@ func TestSelect(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, len(nSlice) < 100, len(nSlice))
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
+
+	slice = MakeSliceSample()
+
+	ret, err = Select(slice, func(i int) bool {
+		return slice[i].ID < 50
+	})
+	nSlice, ok = ret.([]Element)
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID < 50, nSlice)
+	assert.True(t, ok)
+	assert.True(t, len(nSlice) < 100, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
 }
 
 func TestPtrSelect(t *testing.T) {

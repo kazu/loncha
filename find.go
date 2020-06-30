@@ -19,9 +19,9 @@ func Find(slice interface{}, fn CondFunc) (interface{}, error) {
 		return nil, err
 	}
 
-	rv, _ := slice2Reflect(slice)
+	rv, _ := sliceElm2Reflect(slice)
 
-	return rv.Elem().Index(idx).Interface(), nil
+	return rv.Index(idx).Interface(), nil
 
 }
 
@@ -29,12 +29,12 @@ func Find(slice interface{}, fn CondFunc) (interface{}, error) {
 // return error if slice is not pointer of the slice.
 func IndexOf(slice interface{}, fn CondFunc) (int, error) {
 
-	rv, err := slice2Reflect(slice)
+	rv, err := sliceElm2Reflect(slice)
 	if err != nil {
 		return -1, err
 	}
 
-	length := rv.Elem().Len()
+	length := rv.Len()
 	if length == 0 {
 		return -1, err
 	}
