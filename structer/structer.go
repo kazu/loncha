@@ -24,8 +24,13 @@ import (
 type StructInfo struct {
 	PkgName  string
 	Name     string
-	Fields   map[string]string
+	Fields   []FieldInfo
 	Embedded []string
+}
+
+type FieldInfo struct {
+	Name string
+	Type string
 }
 
 var Logger *zap.Logger
@@ -99,7 +104,7 @@ func StrcutInfos(src string, pkgname string) (infos []StructInfo, err error) {
 		sinfo := StructInfo{
 			PkgName: pkgname,
 			Name:    obj.Name(),
-			Fields:  map[string]string{},
+			//Fields:  map[string]string{},
 		}
 		for i := 0; i < internal.NumFields(); i++ {
 			f := internal.Field(i)
@@ -109,7 +114,8 @@ func StrcutInfos(src string, pkgname string) (infos []StructInfo, err error) {
 			if f.Embedded() {
 				sinfo.Embedded = append(sinfo.Embedded, f.Name())
 			} else {
-				sinfo.Fields[f.Name()] = f.Type().String()
+				//sinfo.Fields[f.Name()] = f.Type().String()
+				sinfo.Fields = append(sinfo.Fields, FieldInfo{Name: f.Name(), Type: f.Type().String()})
 			}
 		}
 		Logger.Debug("Object",
