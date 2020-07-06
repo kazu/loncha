@@ -1,4 +1,10 @@
-package example
+package list
+
+// ListEntry is a base of http://golang.org/pkg/container/list/
+// this is tuning performancem, reduce heap usage.
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 import (
 	"github.com/cheekybits/genny/generic"
@@ -9,6 +15,12 @@ import (
 
 // ListEntry ... liked-list like a kernel list head
 type ListEntry generic.Type
+
+func New() (l *ListEntry) {
+	l := &ListEntry{}
+	l.Init()
+	return
+} 
 
 func (d *ListEntry) Init() {
 	d.ListHead.Init()

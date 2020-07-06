@@ -1,17 +1,13 @@
 # loncha
 A high-performance slice Utilities for Go.
 * high-perfirmance slice filter/finder.
-* generator for slice and linked-list 
+* linked-list generics template using [Gennry]
 
 ## Installation
 
 ### slice Utility 
 
     go get github.com/kazu/loncha
-
-### generator 
-
-    go get github.com/kazu/loncha/cmd/gen
 
 ## QuickStart 
 
@@ -73,14 +69,10 @@ type Player struct {
 
 generate linked-list
 
-```
-    gen game_object player.go Player container_list/container_list.gtpl > player_list.go
-    cat player_list.go
-
-    OR
-
-    gen game_object player.go Player container_list/container_list.gtpl player_list.go
-    cat player_list.go
+```console
+    $ go get go get github.com/cheekybits/genny
+    $ wget -q -O - "https://github.com/kazu/loncha/master/container_list/container_list.go" | genny  gen "ListEntry=Player" > player_list.go
+    $ wget -q -O - "https://github.com/kazu/loncha/master/container_list/container_list_test.go" | genny  gen "ListEntry=Player" > player_list_test.go
 ```
 ## benchmark Result
 
@@ -104,3 +96,11 @@ hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 alloc
 go-funk.Filter-16        	     100	   2370492 ns/op	  640135 B/op	   20004 allocs/op
 go-funk.Filter_pointer-16        100	      1048 ns/op	      64 B/op	       2 allocs/op
 ```
+
+
+## References 
+
+- [Gennry]
+
+
+[Gennry]: https://github.com/cheekybits/genny
