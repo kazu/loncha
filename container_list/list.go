@@ -17,7 +17,7 @@ import (
 type ListEntry generic.Type
 
 func New() (l *ListEntry) {
-	l := &ListEntry{}
+	l = &ListEntry{}
 	l.Init()
 	return
 } 
