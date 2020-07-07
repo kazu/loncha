@@ -48,15 +48,6 @@ func (head *ListHead) PtrNext() **ListHead {
 	return &head.next
 }
 
-func (head *ListHead) DirectNext() *ListHead {
-	return head.next
-}
-
-func (head *ListHead) PtrNext() **ListHead {
-	//return atomic.LoadPointer(&head.next)
-	return &head.next
-}
-
 func (head *ListHead) isDeleted() (deleted bool) {
 	/*defer func() {
 		if perr := recover(); perr != nil {
