@@ -135,6 +135,29 @@ func TestFind(t *testing.T) {
 
 }
 
+func TestLastIndexOf(t *testing.T) {
+	nSlice := Elements(MakeSliceSample())
+	id := nSlice[50].ID
+	i, err := LastIndexOf(nSlice, func(i int) bool {
+		return nSlice[i].ID == id
+	})
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[i].ID == id, nSlice[i])
+
+	nSlice = MakeSliceSample()
+	id = nSlice[50].ID
+	i, err = LastIndexOf(nSlice, func(i int) bool {
+		return nSlice[i].ID == id
+	})
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[i].ID == id, nSlice[i])
+
+}
+
+
+
 func TestFilter(t *testing.T) {
 	nSlice := Elements(MakeSliceSample())
 	id := nSlice[50].ID

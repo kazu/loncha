@@ -25,7 +25,7 @@ func Find(slice interface{}, fn CondFunc) (interface{}, error) {
 
 }
 
-// IndexOf gets the index at which the firsh match fn is true. if not found. return -1.
+// IndexOf gets the index at which the first match fn is true. if not found. return -1.
 // return error if slice is not pointer of the slice.
 func IndexOf(slice interface{}, fn CondFunc) (int, error) {
 
@@ -39,6 +39,26 @@ func IndexOf(slice interface{}, fn CondFunc) (int, error) {
 		return -1, err
 	}
 	for i := 0; i < length; i++ {
+		if fn(i) {
+			return i, nil
+		}
+	}
+	return -1, ERR_NOT_FOUND
+}
+// IndexOf gets the index at which the last match fn is true. if not found. return -1.
+// return error if slice is not pointer of the slice.
+func LastIndexOf(slice interface{}, fn CondFunc) (int, error) {
+
+	rv, err := sliceElm2Reflect(slice)
+	if err != nil {
+		return -1, err
+	}
+
+	length := rv.Len()
+	if length == 0 {
+		return -1, err
+	}
+	for i := length -1 ; i >= 0; i-- {
 		if fn(i) {
 			return i, nil
 		}
