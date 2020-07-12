@@ -71,8 +71,8 @@ generate linked-list
 
 ```console
     $ go get go get github.com/cheekybits/genny
-    $ wget -q -O - "https://github.com/kazu/loncha/master/container_list/container_list.go" | genny  gen "ListEntry=Player" > player_list.go
-    $ wget -q -O - "https://github.com/kazu/loncha/master/container_list/container_list_test.go" | genny  gen "ListEntry=Player" > player_list_test.go
+    $ wget -q -O - "https://github.com/kazu/loncha/master/container_list/list.go" | genny  gen "ListEntry=Player" > player_list.go
+    $ wget -q -O - "https://github.com/kazu/loncha/master/container_list/list_test.go" | genny  gen "ListEntry=Player" > player_list_test.go
 ```
 ## benchmark Result
 
