@@ -1,10 +1,6 @@
 package list_head_test
 
 import (
-	//"errors"
-	//"fmt"
-	//"math/rand"
-	//"sync/atomic"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -14,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	//"github.com/kazu/loncha"
 	"github.com/kazu/loncha"
 	list_head "github.com/kazu/loncha/lista_encabezado"
 )

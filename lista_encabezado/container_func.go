@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package loncha/list_head is like a kernel's LIST_HEAD
+// Package list_head ... like a kernel's LIST_HEAD
 // list_head is used by loncha/gen/containers_list
 package list_head
-
 
 // Remove ... Alias of Delete()
 func (l *ListHead) Remove() *ListHead {
@@ -66,12 +65,11 @@ func (l *ListHead) PushBack(vl List) *ListHead {
 	return v
 }
 
-func (l *ListHead) PushBackList(oE List)  {
+func (l *ListHead) PushBackList(oE List) {
 	other := oE.PtrListHead()
 	l.Back().add(other)
-	return 
+	return
 }
-
 
 // PushFront ... inserts a new value v at the front of list l and returns e.
 func (l *ListHead) PushFront(vl List) *ListHead {
@@ -81,14 +79,13 @@ func (l *ListHead) PushFront(vl List) *ListHead {
 	return v
 }
 
-func (l *ListHead) PushFrontList(oE List)  {
+func (l *ListHead) PushFrontList(oE List) {
 	other := oE.PtrListHead()
 	other.Back().add(l)
 	return
 }
 
-
-func (l *ListHead)  Each(fn func(e *ListHead)) {
+func (l *ListHead) Each(fn func(e *ListHead)) {
 
 	cur := l.Cursor()
 
