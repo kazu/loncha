@@ -1,26 +1,23 @@
-package list
-
 // ListEntry is a base of http://golang.org/pkg/container/list/
 // this is tuning performancem, reduce heap usage.
 // Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-import (
-	"github.com/cheekybits/genny/generic"
-	"github.com/kazu/loncha/list_head"
-    "unsafe"
-    "errors"
-)
+package list
 
-// ListEntry ... liked-list like a kernel list head
-type ListEntry generic.Type
+import (
+	"errors"
+	"unsafe"
+
+	"github.com/kazu/loncha/list_head"
+)
 
 func New() (l *ListEntry) {
 	l = &ListEntry{}
 	l.Init()
 	return
-} 
+}
 
 func (d *ListEntry) Init() {
 	d.ListHead.Init()
@@ -33,6 +30,7 @@ func (d *ListEntry) Next() *ListEntry {
 	}
 	return (*ListEntry)(unsafe.Pointer(uintptr(unsafe.Pointer(d.ListHead.Next())) - unsafe.Offsetof(d.ListHead)))
 }
+
 // Prev ... returns the previous list element or nil.
 func (d *ListEntry) Prev() *ListEntry {
 	if d.ListHead.Next() == nil {
@@ -46,16 +44,18 @@ func NewListEntryList(h *ListEntry) *ListEntry {
 	h.Init()
 	return h
 }
+
 // Len ... size of list
 func (d *ListEntry) Len() int {
 	return d.ListHead.Len()
 }
 
 // Add ... insert n after d
-func (d *ListEntry) Add(n *ListEntry)  *ListEntry {
+func (d *ListEntry) Add(n *ListEntry) *ListEntry {
 	d.ListHead.Add(&n.ListHead)
 	return n
 }
+
 // Delete ... delete d from linked-list
 func (d *ListEntry) Delete() *ListEntry {
 	ptr := d.ListHead.Delete()
@@ -89,7 +89,6 @@ func (d *ListEntry) PushFront(v *ListEntry) *ListEntry {
 	return v
 }
 
-
 // PushBack ... inserts a new element e with value v at the back of list l and returns e.
 func (l *ListEntry) PushBack(v *ListEntry) *ListEntry {
 	last := l.Back()
@@ -111,7 +110,6 @@ func (l *ListEntry) InsertAfter(v *ListEntry) *ListEntry {
 	return v
 }
 
-
 // MoveToFront ... moves element e to the front of list l.
 // If e is not an element of l, the list is not modified.
 func (l *ListEntry) MoveToFront(v *ListEntry) *ListEntry {
@@ -125,7 +123,6 @@ func (l *ListEntry) MoveToBack(v *ListEntry) *ListEntry {
 	v.Remove()
 	return l.PushBack(v)
 }
-
 
 // MoveBefore ... moves element e to its new position before mark.
 // If e or mark is not an element of l, or e == mark, the list is not modified.
@@ -145,14 +142,13 @@ func (l *ListEntry) MoveAfter(v *ListEntry) *ListEntry {
 
 func (l *ListEntry) PushBackList(other *ListEntry) {
 	l.Back().Add(other)
-	return 
+	return
 }
 
 func (l *ListEntry) PushFrontList(other *ListEntry) {
 	other.PushBackList(l)
 	return
 }
-
 
 func (l *ListEntry) Each(fn func(e *ListEntry)) {
 

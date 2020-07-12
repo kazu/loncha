@@ -5,12 +5,17 @@ import (
 	//"fmt"
 	//"math/rand"
 	//"sync/atomic"
+	"errors"
+	"fmt"
+	"math/rand"
+	"sync/atomic"
 	"testing"
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 
 	//"github.com/kazu/loncha"
+	"github.com/kazu/loncha"
 	list_head "github.com/kazu/loncha/lista_encabezado"
 )
 
@@ -40,7 +45,7 @@ func TestAdd(t *testing.T) {
 }
 
 type Element struct {
-	ID int
+	ID   int
 	Name string
 	list_head.ListHead
 }
@@ -59,10 +64,10 @@ func PtrElement(ptr unsafe.Pointer) *Element {
 
 func TestElementOf(t *testing.T) {
 
-	first := &Element{ID: 123, Name: "first-kun"}	
+	first := &Element{ID: 123, Name: "first-kun"}
 	first.Init()
 
-	second := &Element{ID: 456, Name: "second-kun"}	
+	second := &Element{ID: 456, Name: "second-kun"}
 	second.Init()
 	first.Add(&second.ListHead)
 
