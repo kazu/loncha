@@ -3,12 +3,14 @@ package loncha
 import (
 	"errors"
 	"reflect"
+	"sort"
 )
 
 var (
-	ERR_SLICE_TYPE error = errors.New("parameter must be slice or pointer of slice")
-	ERR_POINTER_SLICE_TYPE error = errors.New("parameter must be pointer of slice")
-	ERR_NOT_FOUND  error = errors.New("data is not found")
+	ERR_SLICE_TYPE           error = errors.New("parameter must be slice or pointer of slice")
+	ERR_POINTER_SLICE_TYPE   error = errors.New("parameter must be pointer of slice")
+	ERR_NOT_FOUND            error = errors.New("data is not found")
+	ERR_ELEMENT_INVALID_TYPE error = errors.New("slice element is invalid type")
 )
 
 type CondFunc func(idx int) bool
@@ -43,6 +45,13 @@ func sliceElm2Reflect(slice interface{}) (reflect.Value, error) {
 	return rv.Elem(), nil
 }
 
+// Reverse ... Transforms an array such that the first element will become the last, the second element will become the second to last, etc.
+func Reverse(slice interface{}) {
+
+	sort.Slice(slice, func(i, j int) bool { return i > j })
+}
+
+// Select ... return all element on match of CondFunc
 func Select(slice interface{}, fn CondFunc) (interface{}, error) {
 
 	rv, err := sliceElm2Reflect(slice)
@@ -62,6 +71,7 @@ func Select(slice interface{}, fn CondFunc) (interface{}, error) {
 	return ptr.Elem().Interface(), nil
 }
 
+// Filter ... Filter element with mached funcs
 func Filter(slice interface{}, funcs ...CondFunc) error {
 
 	rv, err := slice2Reflect(slice)
@@ -73,6 +83,7 @@ func Filter(slice interface{}, funcs ...CondFunc) error {
 	return nil
 }
 
+// Delete ... Delete element with mached funcs
 func Delete(slice interface{}, funcs ...CondFunc) error {
 	rv, err := slice2Reflect(slice)
 	if err != nil {

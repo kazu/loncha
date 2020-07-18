@@ -46,6 +46,10 @@ slice utility dosent use reflect/interface operation.
 	})
 
     err = loncha.Shuffle(objs, 2)
+
+    loncha.Reverse(objs)
+
+
 ```
 
 ## generate double-linked list of linux kernel list_head type

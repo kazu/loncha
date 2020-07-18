@@ -156,8 +156,6 @@ func TestLastIndexOf(t *testing.T) {
 
 }
 
-
-
 func TestFilter(t *testing.T) {
 	nSlice := Elements(MakeSliceSample())
 	id := nSlice[50].ID
@@ -231,7 +229,6 @@ func TestSelect(t *testing.T) {
 	assert.True(t, len(nSlice) < 100, len(nSlice))
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 
-
 	slice = MakeSliceSample()
 
 	ret, err = Select(slice, func(i int) bool {
@@ -270,6 +267,13 @@ func TestShuffle(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotEqual(t, slice[0].ID, a.ID)
+}
+
+func TestReverse(t *testing.T) {
+	slice := []int{1, 4, 2, 6, 4, 6}
+	Reverse(slice)
+
+	assert.Equal(t, []int{6, 4, 6, 2, 4, 1}, slice)
 }
 
 // BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
