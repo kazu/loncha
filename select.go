@@ -11,6 +11,7 @@ var (
 	ERR_POINTER_SLICE_TYPE   error = errors.New("parameter must be pointer of slice")
 	ERR_NOT_FOUND            error = errors.New("data is not found")
 	ERR_ELEMENT_INVALID_TYPE error = errors.New("slice element is invalid type")
+	ERR_INVALID_INDEX        error = errors.New("invalid index")
 )
 
 type CondFunc func(idx int) bool

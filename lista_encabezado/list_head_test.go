@@ -53,6 +53,11 @@ func (d *Element) PtrListHead() *list_head.ListHead {
 	return &(d.ListHead)
 }
 
+func (d *Element) FromListHead(head *list_head.ListHead) list_head.List {
+
+	return (*Element)(list_head.ElementOf(d, head))
+}
+
 func PtrElement(ptr unsafe.Pointer) *Element {
 	return (*Element)(ptr)
 }

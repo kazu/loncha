@@ -16,6 +16,7 @@ import (
 type List interface {
 	Offset() uintptr
 	PtrListHead() *ListHead
+	FromListHead(*ListHead) List
 }
 
 // ElementOf .. get struct pointer from struct.ListHead
@@ -27,8 +28,7 @@ func ElementOf(l List, head *ListHead) unsafe.Pointer {
 	return unsafe.Pointer(uintptr(unsafe.Pointer(head)) - l.Offset())
 }
 
-
-// Add ... Add list 
+// Add ... Add list
 //     support lista_encabezado
 func (head *ListHead) AddElement(nList List) *ListHead {
 	n := nList.PtrListHead()
@@ -62,11 +62,11 @@ func (l *ListHead) DeleteElementWithCas(pList List) (err error) {
 	return l.DeleteWithCas(pList.PtrListHead())
 }
 
-func (l *ListHead) DeleteWithCas(prev *ListHead) (err error) {	
+func (l *ListHead) DeleteWithCas(prev *ListHead) (err error) {
 	return l.deleteWithCas(prev)
 }
 
-func (l *ListHead) deleteWithCas(prev *ListHead) (err error) {	
+func (l *ListHead) deleteWithCas(prev *ListHead) (err error) {
 	use_mark := true
 
 	head := l.Front()
@@ -126,8 +126,8 @@ func ElementIsContainOf(hList, l List) bool {
 	return ContainOf(hList.PtrListHead(), l.PtrListHead())
 }
 
-func ContainOf(head, elm *ListHead) bool {	
-	
+func ContainOf(head, elm *ListHead) bool {
+
 	c := head.Cursor()
 
 	for c.Next() {
