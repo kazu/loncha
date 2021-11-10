@@ -127,7 +127,12 @@ func (head *ListHead) Next1() (nextElement *ListHead) {
 	}()
 
 	//nextElement = head.next1()
+retry:
 	nextElement = head.next3()
+	if head.next != nextElement && nextElement != nil {
+		//fmt.Printf("head.next=%s nextElement=%s\n", head.Pp(), nextElement.Pp())
+		goto retry
+	}
 	return
 }
 
