@@ -127,7 +127,12 @@ func (head *ListHead) Next1() (nextElement *ListHead) {
 	}()
 
 	//nextElement = head.next1()
+retry:
 	nextElement = head.next3()
+	if head.next != nextElement && nextElement != nil {
+		//fmt.Printf("head.next=%s nextElement=%s\n", head.Pp(), nextElement.Pp())
+		goto retry
+	}
 	return
 }
 
@@ -326,6 +331,9 @@ func listAdd(new, prev, next *ListHead) {
 	}
 }
 
+//  prev ---------------> next
+//        \--> new --/
+//   prev --> next     prev ---> new
 func listAddWitCas(new, prev, next *ListHead) (err error) {
 	if prev != next {
 		//new.next = next
@@ -398,7 +406,9 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 		}
 		return
 	}
-
+	// l->next is marked
+	//  prev -> l -> l.next
+	//  prev -----> l.next
 	if atomic.CompareAndSwapPointer(
 		(*unsafe.Pointer)(unsafe.Pointer(&prev.next)),
 		unsafe.Pointer(l),
@@ -406,13 +416,15 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 		//		unsafe.Pointer(l.prev)) {
 		success = true
 		if l.isLastWithMarked() {
-			panic("????")
+			panic("no delete l->next  mark")
 		} else {
 			// prev.next.prev = l.prev
-			atomic.CompareAndSwapPointer(
+			if !atomic.CompareAndSwapPointer(
 				(*unsafe.Pointer)(unsafe.Pointer(&prev.next.prev)),
 				unsafe.Pointer(l),
-				unsafe.Pointer(l.prev))
+				unsafe.Pointer(l.prev)) {
+				panic("fail remove")
+			}
 
 			return
 		}
@@ -530,22 +542,33 @@ func (l *ListHead) Len() (cnt int) {
 }
 
 func (l *ListHead) Front() (head *ListHead) {
+	isInfinit := map[*ListHead]bool{}
 
 	for head = l; head.Prev() != head; head = head.Prev() {
+
 		if head.IsFirst() {
 			return head
 		}
+		if isInfinit[head] {
+			panic("infinit loop")
+		}
+		isInfinit[head] = true
 	}
 	//panic("front not found")
 	return
 }
 
 func (l *ListHead) Back() (head *ListHead) {
+	isInfinit := map[*ListHead]bool{}
 
 	for head = l; head.Next() != head; head = head.Next() {
 		if head.IsLast() {
 			return head
 		}
+		if isInfinit[head] {
+			panic("infinit loop")
+		}
+		isInfinit[head] = true
 	}
 	//panic("back not found")
 	return

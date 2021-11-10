@@ -334,12 +334,19 @@ func TestNextNew(t *testing.T) {
 					return test.marked[idx] == i
 				})
 				if found {
-					e.MarkForDelete()
+					err := e.MarkForDelete()
+					if err != nil {
+						t.Errorf("fail to mark for delete err=%s", err)
+					}
 				}
 			}
 			//list.DeleteMarked()
+			lLen := list.Len()
+			dlen := test.Count - len(test.marked)
+			_, _ = lLen, dlen
 			if list.Len() != test.Count-len(test.marked) {
-				t.Errorf("missmatch len=%d cnt=%d marked=%d", list.Len(), test.Count, len(test.marked))
+				t.Errorf("missmatch len=%d cnt=%d marked=%d  %v",
+					list.Len(), test.Count, len(test.marked), list.Len() == test.Count-len(test.marked))
 			}
 			fmt.Printf("====END TEST(%s)===\n", test.Name)
 		})
