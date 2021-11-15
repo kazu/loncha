@@ -64,14 +64,16 @@ func PtrElement(ptr unsafe.Pointer) *Element {
 }
 
 func TestElementOf(t *testing.T) {
+	var err error
 
 	first := &Element{ID: 123, Name: "first-kun"}
 	first.Init()
 
 	second := &Element{ID: 456, Name: "second-kun"}
 	second.Init()
-	first.Add(&second.ListHead)
+	_, err = first.Append(&second.ListHead)
 
+	assert.NoError(t, err)
 	assert.Equal(t, first.Prev(), &second.ListHead)
 	assert.Equal(t, first.Next(), &second.ListHead)
 	assert.Equal(t, second.Prev(), &first.ListHead)
@@ -85,18 +87,21 @@ func TestElementOf(t *testing.T) {
 func TestAddWithConcurrent(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
 
-	first := list_head.ListHead{}
+	var err error
+
+	first := &list_head.ListHead{}
 	first.Init()
 
-	second := list_head.ListHead{}
+	second := &list_head.ListHead{}
 	second.Init()
 
-	first.Add(&second)
+	first, err = first.Append(second)
+	assert.NoError(t, err)
 
-	assert.Equal(t, first.Prev(), &second)
-	assert.Equal(t, first.Next(), &second)
-	assert.Equal(t, second.Prev(), &first)
-	assert.Equal(t, second.Next(), &first)
+	assert.Equal(t, first.Prev(), second)
+	assert.Equal(t, first.Next(), second)
+	assert.Equal(t, second.Prev(), first)
+	assert.Equal(t, second.Next(), first)
 
 }
 
@@ -109,10 +114,10 @@ func TestJoinWithConcurrent(t *testing.T) {
 	list := list1s[0]
 	list2 := list2s[0]
 
-	assert.Equal(t, 2, list.Len())
+	assert.Equal(t, 3, list.Len())
 	list.Join(list2)
 
-	assert.Equal(t, 5, list.Len())
+	assert.Equal(t, 6, list.Len())
 	assert.NoError(t, list.Front().Validate())
 
 	list1s = MakeList(3)
@@ -123,12 +128,13 @@ func TestJoinWithConcurrent(t *testing.T) {
 
 	list.Back().Join(list2)
 
-	assert.Equal(t, 5, list.Len())
+	assert.Equal(t, 6, list.Len())
 	assert.NoError(t, list.Front().Validate())
 
 }
 
 func TestDelete(t *testing.T) {
+	list_head.MODE_CONCURRENT = false
 	first := list_head.ListHead{}
 	first.Init()
 
@@ -157,12 +163,15 @@ func TestDelete(t *testing.T) {
 func MakeList(cnt int) (elms []*list_head.ListHead) {
 
 	elms = make([]*list_head.ListHead, 0, cnt)
-
+	var err error
 	for i := 0; i < cnt; i++ {
 		elms = append(elms, &list_head.ListHead{})
 		elms[i].Init()
 		if i > 0 {
-			elms[i-1].Add(elms[i])
+			elms[i-1], err = elms[i-1].Append(elms[i])
+			if err != nil {
+				fmt.Printf("!!!")
+			}
 		}
 	}
 	return elms
@@ -190,12 +199,12 @@ func TestDeleteWithConcurrent(t *testing.T) {
 	assert.Equal(t, second.Prev(), first)
 	assert.Equal(t, second.Next(), first)
 
-	second.Delete()
+	second.Purge()
 
 	assert.True(t, first.IsFirst())
 	assert.True(t, ListIsNext(first, third))
 
-	assert.True(t, second.Empty())
+	assert.True(t, second.IsFirst() && second.IsLast())
 	assert.True(t, third.IsLast())
 	assert.Equal(t, second.Prev(), second)
 	assert.Equal(t, second.Next(), second)
@@ -203,46 +212,50 @@ func TestDeleteWithConcurrent(t *testing.T) {
 	elms = MakeList(3)
 	first, second, third = elms[0], elms[1], elms[2]
 
-	third.Delete()
+	third.Purge()
 	assert.True(t, first.IsFirst())
 	assert.True(t, ListIsNext(first, second))
-	assert.True(t, third.Empty())
+	assert.True(t, third.IsFirst() && third.IsLast())
 
 	elms = MakeList(3)
 	first, second, third = elms[0], elms[1], elms[2]
 
-	first.Delete()
-	assert.True(t, first.Empty())
+	first.Purge()
+	assert.True(t, first.IsFirst() && first.IsLast())
 	assert.True(t, ListIsNext(second, third))
 	assert.True(t, third.IsLast())
 	assert.True(t, second.IsFirst())
 
 }
 
-func TestDeleteFirstWithConcurrent(t *testing.T) {
+func TestPurgeFirstWithConcurrent(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	first := list_head.ListHead{}
+
+	var err error
+	first := &list_head.ListHead{}
 	first.Init()
 
-	second := list_head.ListHead{}
+	second := &list_head.ListHead{}
 	second.Init()
 
-	first.Add(&second)
+	first, err = first.Append(second)
+	assert.NoError(t, err)
 
-	assert.Equal(t, first.Prev(), &second)
-	assert.Equal(t, first.Next(), &second)
-	assert.Equal(t, second.Prev(), &first)
-	assert.Equal(t, second.Next(), &first)
+	assert.Equal(t, first.Prev(), second)
+	assert.Equal(t, first.Next(), second)
+	assert.Equal(t, second.Prev(), first)
+	assert.Equal(t, second.Next(), first)
 
-	first.Delete()
+	//first.Delete()
+	first.Purge()
 
-	assert.Equal(t, first.Prev(), &first)
+	assert.Equal(t, first.Prev(), first)
 	assert.Equal(t, first.Next(),
-		&first, fmt.Sprintf("first=%+v next=%+v", &first, first.Next()))
-	assert.True(t, first.Empty())
+		first, fmt.Sprintf("first=%+v next=%+v", first, first.Next()))
+	assert.True(t, first.IsFirst() && first.IsLast())
 	assert.True(t, first.IsLast())
-	assert.Equal(t, second.Prev(), &second)
-	assert.Equal(t, second.Next(), &second)
+	assert.Equal(t, second.Prev(), second)
+	assert.Equal(t, second.Next(), second)
 
 }
 
@@ -293,12 +306,12 @@ func (d *Hoge) ContainOf(ptr *list_head.ListHead) *Hoge {
 
 func TestContainerListAdd(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	var list Hoge
-	list.Init()
+	// var list Hoge
+	// list.Init()
 
 	hoge := Hoge{ID: 1, Name: "aaa"}
 	hoge.Init()
-	list.Add(&hoge)
+	// list.Add(&hoge)
 
 	hoge2 := Hoge{ID: 2, Name: "bbb"}
 	hoge2.Init()
@@ -315,25 +328,26 @@ func TestNext(t *testing.T) {
 
 	var head list_head.ListHead
 
-	head.Init()
+	head.InitAsEmpty()
 
 	marked := 0
 
 	for i := 0; i < 10; i++ {
 		e := &list_head.ListHead{}
 		e.Init()
-		head.Add(e)
+		head.Append(e)
 	}
 
 	elm := &head
 
 	for {
 		fmt.Printf("1: elm=%s\n", elm.Pp())
-		if elm == elm.Next() {
+		if elm.IsLast() {
 			break
 		}
 		elm = elm.Next()
 		marked++
+
 	}
 
 	assert.Equal(t, 10, marked)
@@ -343,7 +357,7 @@ func TestNext(t *testing.T) {
 	//elm = &head
 	for {
 		fmt.Printf("2: elm=%s\n", elm.Pp())
-		if elm == elm.Next() {
+		if elm.IsLast() {
 			break
 		}
 
@@ -361,7 +375,7 @@ func TestNext(t *testing.T) {
 	cnt := 0
 	elm = &head
 	for {
-		if elm == elm.Next() {
+		if elm.IsLast() {
 			break
 		}
 		elm = elm.Next()
@@ -415,23 +429,30 @@ func TestNextNew(t *testing.T) {
 
 	list_head.MODE_CONCURRENT = true
 
+	var err error
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			fmt.Printf("====START TEST(%s)===\n", test.Name)
-			var list list_head.ListHead
-			list.Init()
+			list := &list_head.ListHead{}
+			list.InitAsEmpty()
 			for i := 0; i < test.Count; i++ {
 				e := makeElement()
-				list.Add(e)
+				list, err = list.Append(e)
+				if err != nil {
+					t.Error(err)
+				}
 
 				found := loncha.Contain(&test.marked, func(idx int) bool {
 					return test.marked[idx] == i
 				})
 				if found {
 					err := e.MarkForDelete()
-					if err != nil {
+					if err != nil && err == list_head.ErrEmpty {
 						t.Errorf("fail to mark for delete err=%s", err)
 					}
+				}
+				if list.IsPurged() {
+					list = list.ActiveList()
 				}
 			}
 			//list.DeleteMarked()
@@ -450,22 +471,30 @@ func TestNextNew(t *testing.T) {
 func TestNext1(t *testing.T) {
 
 	list_head.MODE_CONCURRENT = true
+	var err error
 
-	var head list_head.ListHead
+	head := &list_head.ListHead{}
 
-	head.Init()
+	head.InitAsEmpty()
 	e := &list_head.ListHead{}
-	assert.Equal(t, &head, list_head.ListWithError(head.Next1()).List())
+	assert.Equal(t, head, list_head.ListWithError(head.Next1()).List())
 	e.Init()
-	head.Add(e)
+	head, err = head.Append(e)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, head.Len())
 	e.MarkForDelete()
 
-	assert.Equal(t, &head, list_head.ListWithError(head.Next1()).List())
+	assert.Equal(t, head, list_head.ListWithError(head.Next1()).List())
 	assert.Equal(t, 0, head.Len())
+
+	if head.IsPurged() {
+		head = head.ActiveList()
+	}
 
 	e2 := &list_head.ListHead{}
 	e2.Init()
-	head.Add(e2)
+	head, _ = head.Append(e2)
 
 	assert.Equal(t, e2, list_head.ListWithError(head.Next1()).List())
 	assert.Equal(t, 1, head.Len())
@@ -532,7 +561,7 @@ func TestRaceCondtion(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name,
 			func(t *testing.T) {
-				var head list_head.ListHead
+				head := &list_head.ListHead{}
 				head.Init()
 
 				doneCh := make(chan bool, test.Concurrent)
@@ -541,7 +570,7 @@ func TestRaceCondtion(t *testing.T) {
 
 				for i := 0; i < test.Concurrent; i++ {
 					e := makeElement()
-					head.Add(e)
+					head, _ = head.Append(e)
 					lists = append(lists, e)
 				}
 				for i, e := range lists {
@@ -563,16 +592,120 @@ func TestRaceCondtion(t *testing.T) {
 	}
 
 }
-func TestConcurrentAddAndDelete(t *testing.T) {
-	list_head.MODE_CONCURRENT = true
-	const concurrent int = 100
 
-	var head list_head.ListHead
-	var other list_head.ListHead
+func purgeResult(active *list_head.ListHead, purged *list_head.ListHead) (bool, *list_head.ListHead, *list_head.ListHead) {
+
+	if purged == nil {
+		return false, active, purged
+	}
+	return true, active, purged
+
+}
+
+func TestConcurrentLastAppend(t *testing.T) {
+
+	list_head.MODE_CONCURRENT = true
+	const (
+		concurrent    int = 100   //100
+		cntPerRoutine int = 10000 //60
+	)
+	list := list_head.ListHead{}
+	list.InitAsEmpty()
+
+	start := list.Prev()
+	last := list.Next()
+
 	var wg sync.WaitGroup
 
-	head.Init()
-	other.Init()
+	append := func(last, e *list_head.ListHead) {
+		var err2 error
+		_ = err2
+		var nlast, nlast3 *list_head.ListHead
+		_ = nlast
+		if e.IsMarked() {
+			if ok, _ := e.IsSafety(); ok {
+				e.Init()
+			} else {
+				_ = ok
+			}
+
+		}
+
+		nlast2, err := last.Append(e)
+		if err != nil {
+			err2 = err
+			nlast3 = nlast2.AvoidNotAppend(err2)
+			nlast, err = nlast3.Append(e)
+		} else {
+			nlast = nlast2
+		}
+		assert.NoError(t, err)
+		//assert.Equal(t, start.Back().Next(), last)
+	}
+
+	purge := func(start, e *list_head.ListHead) {
+		success, active, purged := purgeResult(e.Purge())
+		_ = active
+		assert.True(t, success)
+		if success {
+			assert.True(t, purged.IsMarked() || purged.IsSingle())
+		} else {
+			_ = success
+		}
+	}
+	_ = purge
+
+	makeElems := func(cnt int) (elms []*list_head.ListHead) {
+		elms = make([]*list_head.ListHead, cnt)
+		for i := 0; i < cnt; i++ {
+			e := &list_head.ListHead{}
+			e.Init()
+			elms[i] = e
+		}
+		return
+
+	}
+
+	for i := 0; i < concurrent; i++ {
+		go func(i int) {
+			wg.Add(1)
+			elms := makeElems(cntPerRoutine)
+
+			for i := 0; i < cntPerRoutine; i++ {
+				append(last, elms[i])
+			}
+			for i := 0; i < cntPerRoutine; i++ {
+				purge(start, elms[i])
+				assert.True(t, elms[i].IsMarked() || elms[i].IsSingle())
+				append(last, elms[i])
+			}
+
+			defer wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	stats := list_head.RecoverStats
+	_ = stats
+	len := start.Len()
+	_ = len
+
+	assert.Equal(t, start.Back().Next(), last)
+
+}
+
+func TestConcurrentAddAndDelete(t *testing.T) {
+	list_head.MODE_CONCURRENT = true
+	var err error
+	const concurrent int = 100
+
+	head := &list_head.ListHead{}
+	other := &list_head.ListHead{}
+	var wg sync.WaitGroup
+
+	head.InitAsEmpty()
+	other.InitAsEmpty()
+	headPtr := uintptr(unsafe.Pointer(head))
+	_ = headPtr
 
 	fmt.Printf("start head=%s other=%s\n", head.P(), other.P())
 
@@ -581,7 +714,8 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			//fmt.Println("invalid")
 			assert.True(t, false, head.Len()+other.Len())
 		}
-	}
+	} // Deprecated: Delete()
+
 	_ = cond
 
 	for i := 0; i < concurrent; i++ {
@@ -589,52 +723,87 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			wg.Add(1)
 			e := &list_head.ListHead{}
 			e.Init()
+
+			hlen := head.Len()
+			olen := other.Len()
 			fmt.Printf("idx=%5d Init e=%s len(head)=%d len(other)=%d\n",
-				i, e.P(), head.Len(), other.Len())
+				i, e.P(), hlen, olen)
 			len := head.Len()
-			head.Add(e)
 
-			assert.Equalf(t, &head, e.Front(), "idx=%5d e.Front()=%s != &head=%s", i, e.Front().Pp(), head.Pp())
-
-			if !list_head.ContainOf(&head, e) {
-				assert.NoError(t, head.Validate())
+			// Append
+			head, err = head.Append(e)
+			if err != nil {
+				head, err = head.AvoidNotAppend(err).Append(e)
 			}
-			assert.Truef(t, list_head.ContainOf(&head, e), "idx=%d false list_head.ContainOf(&head, e) len=before:%d, after:%d", i, len, head.Len())
+			if !head.IsFirst() {
+				head = head.ActiveList().Front()
+			}
+			if head.Empty() && !head.Next().Empty() {
+				//head = head.Front()
+				//head = head.Next()
+				_ = head
+			}
 
+			assert.NoError(t, err)
+
+			assert.True(t, head.IsFirst())
+
+			assert.Equalf(t, unsafe.Pointer(head), unsafe.Pointer(e.Front().Prev()),
+				"idx=%5d e.Front()=%s != head=%s e=%s head.Empty()=%v e.Front().Empty()=%v\n",
+				i, e.Front().P(), head.P(), e.P(), head.Empty(), e.Front().Empty())
+
+			if !list_head.ContainOf(head.Front(), e) {
+				t := list_head.ContainOf(head.Front(), e)
+				hf := head.Front()
+				ef := e.Front()
+				_, _, _ = t, hf, ef
+				//assert.NoError(t, head.Validate())
+			}
+			assert.Truef(t, list_head.ContainOf(head.Front(), e),
+				"idx=%d false list_head.ContainOf(&head, e) len=before:%d, after:%d",
+				i, len, head.Len())
+
+			// Append +3
 			for i := 0; i < 3; i++ {
 				ee := &list_head.ListHead{}
 				ee.Init()
-				head.Add(ee)
+				head, err = head.Append(ee)
+				assert.NoError(t, err)
 			}
 
 			//cond()
 			fmt.Printf("idx=%5d Add e=%s last=%5v before_len(head)=%d len(head)=%d len(other)=%d\n",
 				i, e.P(), e.IsLast(), len, head.Len(), other.Len())
 			before_len := head.Len()
+
+			// Purge -1
 			for {
 
-				if e.Delete() != nil {
-					break
-				}
+				// if e.Delete() != nil {
+				// 	break
+				// }
+				_, e = e.Purge()
 
 				//if e.DeleteWithCas(e.Prev()) == nil {
 				//	break
 				//}
 				fmt.Printf("delete all marked head=%s e=%s\n", head.Pp(), e.P())
-				head.DeleteMarked()
 				fmt.Printf("after marked gc head=%s e=%s\n", head.Pp(), e.P())
-				if !list_head.ContainOf(&head, e) {
+				if !list_head.ContainOf(head, e) {
 					break
+				}
+				if head.IsPurged() {
+					head = head.ActiveList()
 				}
 				//fmt.Printf("????")
 			}
-			if list_head.ContainOf(&head, e) {
+			if list_head.ContainOf(head, e) {
 				fmt.Printf("!!!!\n")
 			}
 			if before_len < head.Len() {
 				fmt.Printf("invalid increase? idx=%d before_len=%d after=%d \n", i, before_len, head.Len())
 			}
-			assert.False(t, list_head.ContainOf(&head, e))
+			assert.False(t, list_head.ContainOf(head, e))
 			assert.Equal(t, e, e.Next())
 			assert.Equal(t, e, e.Prev())
 
@@ -646,9 +815,10 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			//assert.False(t, ContainOf(&head, e))
 
 			before_e := e.Pp()
-			other.Add(e)
-			assert.False(t, list_head.ContainOf(&head, e))
-			assert.True(t, list_head.ContainOf(&other, e))
+			other, err = other.Append(e)
+			assert.NoError(t, err)
+			assert.False(t, list_head.ContainOf(head, e))
+			assert.True(t, list_head.ContainOf(other, e))
 			//cond()
 
 			fmt.Printf("idx=%5d Move before_e=%s e=%s len(head)=%d len(other)=%d\n",
@@ -660,7 +830,8 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 	}
 	wg.Wait()
 
-	head.DeleteMarked()
+	headF := head.Front()
+	_ = headF
 	assert.NoError(t, head.Front().Validate())
 	assert.NoError(t, other.Front().Validate())
 	assert.Equal(t, concurrent, other.Len())
