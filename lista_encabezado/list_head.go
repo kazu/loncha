@@ -19,50 +19,135 @@ var (
 	PANIC_NEXT_IS_MARKED bool = false
 )
 
-var (
-	// ErrDeleteFirst is undocumnted
-	ErrDeleteFirst error = errors.New("first element cannot delete")
-	// ErrListNil is undocumnted
-	ErrListNil error = errors.New("list is nil")
-	// ErrEmpty is undocumnted
-	ErrEmpty error = errors.New("list is empty")
-	// ErrMarked is undocumnted
-	ErrMarked error = errors.New("element is marked")
+const (
+	ErrTDeleteFirst = 1 << iota
+	ErrTListNil
+	ErrTEmpty
+	ErrTMarked
+	ErrTNextMarked
+	ErrTNotAppend
+	ErrTNotMarked
+	ErrTCasConflictOnMark
+	ErrTFirstMarked
+	ErrTCasConflictOnAdd
+	ErrTOverRetyry
+	ErrTNoSafetyOnAdd
 )
+
+var (
+	ErrDeleteFirst       error = NewError(ErrTDeleteFirst, errors.New("first element cannot delete"))
+	ErrListNil           error = NewError(ErrTListNil, errors.New("list is nil"))
+	ErrEmpty             error = NewError(ErrTEmpty, errors.New("list is empty"))
+	ErrMarked            error = NewError(ErrTMarked, errors.New("element is marked"))
+	ErrNextMarked        error = NewError(ErrTNextMarked, errors.New("next element is marked"))
+	ErrNotAppend         error = NewError(ErrTNotAppend, errors.New("element cannot be append"))
+	ErrNotMarked         error = NewError(ErrTNotMarked, errors.New("elenment cannot be marked"))
+	ErrCasConflictOnMark error = NewError(ErrTCasConflictOnMark, errors.New("cas conflict(fail mark)"))
+	ErrFirstMarked       error = NewError(ErrTFirstMarked, errors.New("first element is marked"))
+	ErrNoSafetyOnAdd     error = NewError(ErrTFirstMarked, errors.New("element is not safety to append"))
+)
+
+type ListHeadError struct {
+	Type uint16
+	Info string
+	error
+}
+
+type OptNewError func(e *ListHeadError)
+
+func NewError(t uint16, err error, opts ...OptNewError) *ListHeadError {
+
+	e := &ListHeadError{Type: t, error: err}
+
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
+}
+
+func Error(oe error, opts ...OptNewError) error {
+	e, success := oe.(*ListHeadError)
+	if !success {
+		return oe
+	}
+
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
+}
+
+func ErrorInfo(s string) OptNewError {
+
+	return func(e *ListHeadError) {
+		e.Info = s
+	}
+}
 
 type ListHead struct {
 	prev *ListHead
 	next *ListHead
 }
 
-type ListHaedError struct {
+type ListHeadWithError struct {
 	head *ListHead
 	err  error
 }
 
-func (le ListHaedError) Error() string {
+func (le ListHeadWithError) Error() string {
 	return le.err.Error()
 }
-func (le ListHaedError) List() *ListHead {
+func (le ListHeadWithError) List() *ListHead {
 	return le.head
 }
 
-func ListWithError(head *ListHead, err error) ListHaedError {
-	return ListHaedError{head: head, err: err}
+func ListWithError(head *ListHead, err error) ListHeadWithError {
+	return ListHeadWithError{head: head, err: err}
 }
 
 func GetConcurrentMode() bool {
 	return MODE_CONCURRENT
 }
 
+func NewEmpty() *ListHead {
+	empty := &ListHead{}
+	empty.prev = empty
+	empty.next = empty
+	return empty
+}
+
 func (head *ListHead) Init() {
+	if !MODE_CONCURRENT {
+		head.prev = head
+		head.next = head
+		return
+	}
+
+	start := NewEmpty()
+	end := NewEmpty()
+	head.prev = start
+	head.next = end
+
+	start.next = head
+	end.prev = head
+}
+
+func (head *ListHead) InitAsEmpty() {
+
+	end := NewEmpty()
+
 	head.prev = head
-	head.next = head
+	head.next = end
+
+	end.next = end
+	end.prev = head
+
 }
 
 func (head *ListHead) Prev() *ListHead {
-	prev := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev)))
-	return (*ListHead)(prev)
+	prev := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
+
+	return prev
 }
 
 func (head *ListHead) DirectNext() *ListHead {
@@ -83,12 +168,12 @@ func MakeBoolAndError(t bool, e error) BoolAndError {
 	return BoolAndError{t: t, e: e}
 }
 
-func (head *ListHead) isMarkedForDeleteWithoutError() (deleted bool) {
+func (head *ListHead) isMarkedForDeleteWithoutError() (marked bool) {
 
 	return MakeBoolAndError(head.isMarkedForDelete()).t
 }
 
-func (head *ListHead) isMarkedForDelete() (deleted bool, err error) {
+func (head *ListHead) isMarkedForDelete() (marked bool, err error) {
 
 	if head == nil {
 		return false, ErrListNil
@@ -106,53 +191,21 @@ func (head *ListHead) isMarkedForDelete() (deleted bool, err error) {
 
 }
 
-func (list *ListHead) DeleteMarked() (err error) {
-
-	head := list.Front()
-	//fmt.Printf("Info: DeleteMarked START %p\n", head)
-	elm := head
-	old := elm
-
-	for {
-		// mark
-		old = elm
-		//atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&elm)), unsafe.Pointer(elm.next)) // elm = elm.next // FIXME: race condition 413, 85
-		if !atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&elm)),
-			unsafe.Pointer(old),
-			unsafe.Pointer(elm.next)) {
-
-			err = errors.New("fail cas for DeleteMarked loop")
-			continue
-		}
-
-		if old == elm {
-			//fmt.Printf("Info: DeleteMarked END %p\n", head)
-			return err
-		}
-		isMaredForDeleted, err := elm.isMarkedForDelete()
-
-		if isMaredForDeleted {
-			elm.deleteDirect(old)
-			elm = head
-		} else if err != nil {
-			err = fmt.Errorf("cannot DeleteMarked invalid becaouse invalid list err=%s", err.Error())
-			return err
-		}
-	}
-
-}
-
 func (head *ListHead) Next() (nextElement *ListHead) {
 	//MENTION: ignore error. should use NextWithError()
 	return head.NextWithError().head
 }
 
-func (head *ListHead) NextWithError() ListHaedError {
+func (head *ListHead) NextWithError() ListHeadWithError {
 
 	if !MODE_CONCURRENT {
-		return ListHaedError{head.next, nil}
+		return ListHeadWithError{head.next, nil}
 	}
+	if head.isMarkedForDeleteWithoutError() && head.IsFirst() {
+		prev := head.prev
+		return prev.NextWithError()
+	}
+
 	return ListWithError(head.Next1())
 }
 
@@ -163,21 +216,40 @@ func (head *ListHead) Next1() (nextElement *ListHead, err error) {
 		}
 	}()
 
-retry:
-	nextElement, err = head.next3()
-	if head.next != nextElement && nextElement != nil {
-		goto retry
+	err = retry(100, func(retry int) (bool, error) {
+		nextElement, err = head.next3()
+		switch err {
+		case ErrNextMarked:
+			return false, Error(err, ErrorInfo("next marked"))
+		case ErrMarked:
+			if head.Prev() == head {
+				return true, Error(err, ErrorInfo("head.Prev() == head"))
+			}
+			//nextElement, err = head.Prev().Next1()
+			return false, Error(err, ErrorInfo("call head.Prev().Next1()"))
+		}
+		if head.next != nextElement && nextElement != nil {
+			return false, nil
+		}
+		if nextElement != nil && nextElement.prev != head {
+			AddRecoverState("recoverPrev")
+			nextElement.recoverPrev(head)
+			return false, nil
+		}
+		return true, Error(err, ErrorInfo("nextElement, err = head.next3()"))
+	})
+	if errList, ok := err.(*ListHeadError); ok && errList.Type == ErrTOverRetyry {
+		_ = errList
+
 	}
-	if nextElement != nil && nextElement.prev != head {
-		//fmt.Printf("repaore invalid nextElement.prev cur=%p next=%p next.prev=%p\n", head, nextElement, nextElement.prev)
-
-		atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&nextElement.prev)),
-			unsafe.Pointer(head))
-
-		goto retry
-	}
-
 	return
+}
+
+func (head *ListHead) recoverPrev(prev *ListHead) {
+
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev)),
+		unsafe.Pointer(prev))
+
 }
 
 // return nil on last of list
@@ -260,6 +332,10 @@ func (head *ListHead) next3() (next *ListHead, err error) {
 	if unsafe.Pointer(head) == unsafe.Pointer(uintptr(headNext)^1) {
 		return nil, ErrMarked
 	}
+	if (*ListHead)(headNext).isMarkedForDeleteWithoutError() {
+		//err = head.DeleteMarked()
+		return nil, ErrNextMarked
+	}
 
 	if head.isMarkedForDeleteWithoutError() {
 		if PANIC_NEXT_IS_MARKED {
@@ -271,102 +347,8 @@ func (head *ListHead) next3() (next *ListHead, err error) {
 		return nil, ErrMarked
 
 	}
-	if (*ListHead)(headNext).isMarkedForDeleteWithoutError() {
-		err = head.DeleteMarked()
-	}
 
 	return (*ListHead)(headNext), err
-
-}
-
-// Deprecated: next2 should be used
-func (head *ListHead) next2() (nextElement *ListHead) {
-
-RESTART:
-
-	uptr := unsafe.Pointer(head.next)
-	next := atomic.LoadPointer(&uptr)
-
-	hptr := unsafe.Pointer(head)
-	pHead := atomic.LoadPointer(&hptr)
-
-	EqualWithMark := func(src, dst unsafe.Pointer) bool {
-		if src == nil {
-			return true
-		}
-
-		if uintptr(src) == uintptr(dst) {
-			return true
-		}
-
-		if uintptr(src) > uintptr(dst) && uintptr(src)-uintptr(dst) <= 1 {
-			return true
-		}
-		if uintptr(src) < uintptr(dst) && uintptr(dst)-uintptr(src) <= 1 {
-			return true
-		}
-		return false
-	}
-
-	for !EqualWithMark(next, pHead) {
-		//	for next != pHead {
-
-		if uintptr(next)&1 > 0 {
-			head.DeleteMarked()
-			goto RESTART
-			//nextElement = (*ListHead)(unsafe.Pointer(uintptr(next) ^ 1))
-			//return nextElement.next1()
-		}
-		nextElement = (*ListHead)(next)
-
-		if nextElement.isMarkedForDeleteWithoutError() {
-			head.DeleteMarked()
-			goto RESTART
-		} else {
-			return nextElement
-		}
-
-	}
-
-	return nil
-
-}
-
-// Deprecated: Next0 ... should be used
-func (head *ListHead) Next0() (next *ListHead) {
-
-	if !MODE_CONCURRENT {
-		next = head.next
-		return
-	}
-
-	cptr := unsafe.Pointer(head)
-	curPtr := atomic.LoadPointer(&cptr)
-	//_ = cur
-
-	ptr := unsafe.Pointer(head.next)
-	nextPtr := atomic.LoadPointer(&ptr)
-
-	cur := (*ListHead)(curPtr)
-	next = (*ListHead)(nextPtr)
-
-	if cur == next {
-		return
-	}
-	/*
-		if next.isDeleted() {
-			return next.Next()
-		}
-	*/
-	if cur.isMarkedForDeleteWithoutError() {
-		nextPtr = unsafe.Pointer(uintptr(nextPtr) ^ 1)
-		next = (*ListHead)(nextPtr)
-		if cur == next {
-			return
-		}
-		next = next.Next()
-	}
-	return
 
 }
 
@@ -382,58 +364,116 @@ func listAdd(new, prev, next *ListHead) {
 //        \--> new --/
 //   prev --> next     prev ---> new
 func listAddWitCas(new, prev, next *ListHead) (err error) {
-	if prev != next {
-		//new.next = next
-		atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&new.next)),
-			unsafe.Pointer(next))
+	// backup for roolback
+	oNewPrev := uintptr(unsafe.Pointer(new.prev))
+	oNewNext := uintptr(unsafe.Pointer(new.next))
+	rollback := func(new *ListHead) {
+		StoreListHead(&new.prev, (*ListHead)(unsafe.Pointer(oNewPrev)))
+		StoreListHead(&new.next, (*ListHead)(unsafe.Pointer(oNewNext)))
 	}
-	if next == nil {
-		fmt.Printf("???")
+	_ = rollback
+
+	// new.prev -> prev, new.next -> next
+	StoreListHead(&new.prev, prev)
+	StoreListHead(&new.next, next)
+
+	if Cas(&prev.next, next, new) &&
+		Cas(&next.prev, prev, new) {
+		return nil
 	}
 
-	if atomic.CompareAndSwapPointer(
-		(*unsafe.Pointer)(unsafe.Pointer(&prev.next)),
-		unsafe.Pointer(next),
-		unsafe.Pointer(new)) {
-		if next == nil {
-			fmt.Printf("???")
-		}
-
-		if prev != next {
-			//next.prev, new.prev = new, prev
-			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&next.prev)),
-				unsafe.Pointer(new))
-			//new.prev = prev
-			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&new.prev)),
-				unsafe.Pointer(prev))
-		} else {
-			//new.prev = prev
-			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&new.prev)),
-				unsafe.Pointer(prev))
-		}
-		return
-	}
-	if prev.isMarkedForDeleteWithoutError() {
-		return ErrMarked
-	}
-
-	//return errors.New("cas conflict")
-	return fmt.Errorf("listAddWithCas() fail retry: new=%s prev=%s next=%s",
-		new.Pp(),
-		prev.Pp(),
-		next.Pp())
+	rollback(new)
+	return NewError(ErrTCasConflictOnAdd,
+		fmt.Errorf("listAddWithCas() please retry: new=%s prev=%s next=%s", new.P(), prev.P(), next.P()))
 
 }
 
 func (l *ListHead) MarkForDelete() (err error) {
 
-	if atomic.CompareAndSwapPointer(
-		(*unsafe.Pointer)(unsafe.Pointer(&l.next)),
-		unsafe.Pointer(l.next),
-		unsafe.Pointer(uintptr(unsafe.Pointer(l.next))|1)) {
-		return
+	if !l.canPurge() {
+		return ErrNotMarked
 	}
-	return errors.New("cas conflict(fail mark)")
+
+	mask := uintptr(^uint(0)) ^ 1
+
+	var (
+		ErrDeketeStep0 error = errors.New("fail step 0")
+		ErrDeketeStep1 error = errors.New("fail step 1")
+		ErrDeketeStep2 error = errors.New("fail step 2")
+		ErrDeketeStep3 error = errors.New("fail step 3")
+	)
+	_, _ = ErrDeketeStep2, ErrDeketeStep3
+
+	err = retry(100, func(retry int) (fin bool, err error) {
+		prev1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.prev)) & mask))
+		next1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.next)) & mask))
+
+		prev := prev1
+		next := next1
+
+		if retry > 50 {
+			fmt.Printf("retry > 50\n")
+
+		}
+
+		if !MarkListHead(&l.next, next) {
+			AddRecoverState("remove: retry marked next")
+			return false, ErrDeketeStep0
+		}
+		if !MarkListHead(&l.prev, prev) {
+			AddRecoverState("remove: retry marked prev")
+			return false, ErrDeketeStep1
+		}
+
+		prev2 := PrevNoM(l.prev)
+		next2 := NextNoM(l.next)
+		_, _ = prev2, next2
+
+		prevs := []**ListHead{&prev1.next, &prev2.next}
+		nexts := []**ListHead{&next1.prev, &next2.prev}
+
+		t := false
+		_ = t
+		for i, pn := range prevs {
+			_ = i
+			if *pn != l {
+				continue
+			}
+			next := next1
+			if next.IsMarked() {
+				next = next2
+			}
+			t = Cas(prevs[i], l, next)
+		}
+
+		for i, np := range nexts {
+			_ = i
+			if *np != l {
+				continue
+			}
+			prev := prev1
+			if prev.IsMarked() {
+				prev = prev2
+			}
+			t = Cas(np, l, prev)
+		}
+
+		for i, toL := range append(prevs, nexts...) {
+			_ = i
+			if l == *toL {
+				AddRecoverState("remove: found node to me")
+				return false, ErrDeketeStep2
+			}
+		}
+
+		return true, nil
+	})
+
+	if err != nil {
+		_ = err
+	}
+
+	return err
 }
 
 func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
@@ -464,13 +504,19 @@ func (l *ListHead) deleteDirect(oprev *ListHead) (success bool) {
 		}
 		return
 	}
+	onext := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)))
+	if onext == nil || uintptr(onext)&1 == 0 {
+		fmt.Printf("deleteDirect(): l.next is not marked")
+	}
 	// l->next is marked
 	//  prev -> l -> l.next
 	//  prev -----> l.next
+	mask := uintptr(^uint(0)) ^ 1
 	if atomic.CompareAndSwapPointer(
 		(*unsafe.Pointer)(unsafe.Pointer(&prev.next)),
 		unsafe.Pointer(l),
-		unsafe.Pointer(uintptr(unsafe.Pointer(l.next))^1)) {
+		unsafe.Pointer(uintptr(unsafe.Pointer(l.next))&mask)) {
+		//unsafe.Pointer(uintptr(unsafe.Pointer(l.next))^1)) {
 		//		unsafe.Pointer(l.prev)) {
 		success = true
 		if l.isLastWithMarked() {
@@ -512,61 +558,53 @@ func (l *ListHead) P() string {
 		atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)))) //l.next)
 }
 
+// Delete ... delete
+// Deprecated: Delete()
 func (l *ListHead) Delete() (result *ListHead) {
-	/*
-		defer func() {
-			if perr := recover(); perr != nil {
-				fmt.Printf("panic: retry l=%p\n", l)
-				if !MODE_CONCURRENT {
-					panic(perr)
-				}
-				for true {
-					err := l.deleteWithCas()
-					if err == nil {
-						break
-					}
-					fmt.Printf("Delete() err=%s\n", err.Error())
-				}
-				l.Init()
-				result = l.next
-			}
 
-		}()
-	*/
-	retry := 100
-	if MODE_CONCURRENT && l.IsFirst() {
-		l.deleteFirst()
-		goto ENSURE
-	}
+	//retry := 100
+	// if MODE_CONCURRENT && l.IsFirst() {
+	// 	l.deleteFirst()
+	// 	goto ENSURE
+	// }
 
 	if MODE_CONCURRENT {
 
-		for ; retry > 0; retry-- {
-			//			err := l.deleteWithCas(l.prev)
-			err := l.deleteWithCas((*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)))))
-			if err == nil {
-				break
-			}
-			if err == ErrDeleteFirst {
-				l.deleteFirst()
-				goto ENSURE
-			}
-			fmt.Printf("retry=%d err=%s\n", retry, err.Error())
+		// for ; retry > 0; retry-- {
+		// 	//			err := l.deleteWithCas(l.prev)
+		// 	err := l.deleteWithCas((*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)))))
+		// 	if err == nil {
+		// 		break
+		// 	}
+		// 	if err == ErrEmpty {
+		// 		return l
+		// 	}
+		// 	if err == ErrDeleteFirst {
+		// 		l.deleteFirst()
+		// 		goto ENSURE
+		// 	}
+		// 	fmt.Printf("retry=%d err=%s\n", retry, err.Error())
+		// }
+		// if retry <= 0 {
+		// 	panic("fail")
+		// }
+		err := l.MarkForDelete()
+		if err != nil {
+			panic(err.Error())
 		}
-		if retry <= 0 {
-			panic("fail")
-		}
-	} else {
-
-		if l.IsFirst() {
-			l.next.prev = l.next
-		} else if l.IsLast() {
-			l.prev.next = l.prev
-		} else {
-			l.next.prev, l.prev.next = l.prev, l.next
-		}
+		// delete marked element
+		//_ = l.Prev().Next()
+		return l
 	}
-ENSURE:
+
+	if l.IsFirst() {
+		l.next.prev = l.next
+	} else if l.IsLast() {
+		l.prev.next = l.prev
+	} else {
+		l.next.prev, l.prev.next = l.prev, l.next
+	}
+
 	// l.next, l.prev = l, l // FIXME: race condition 56
 	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&l.next)), unsafe.Pointer(l))
 	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)), unsafe.Pointer(l))
@@ -575,11 +613,14 @@ ENSURE:
 }
 
 func (l *ListHead) Empty() bool {
+	if MODE_CONCURRENT {
+		return l.prev == l || l.next == l
+	}
 	return l.next == l
 }
 
 func (l *ListHead) IsLast() bool {
-	return l.Next() == l
+	return l.Next().Empty()
 }
 
 func (l *ListHead) isLastWithMarked() bool {
@@ -593,12 +634,52 @@ func (l *ListHead) isLastWithMarked() bool {
 }
 
 func (l *ListHead) IsFirst() bool {
+	prev := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev))))
+	return prev.Empty()
+
+	//	return prev == unsafe.Pointer(l) // l.prev == l // FIXME: race condition ? :350, 358
+}
+
+func (l *ListHead) IsFirstMarked() bool {
 	prev := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&l.prev)))
 
 	return prev == unsafe.Pointer(l) // l.prev == l // FIXME: race condition ? :350, 358
 }
 
 func (l *ListHead) Len() (cnt int) {
+	if MODE_CONCURRENT {
+		return l.lenCc()
+	}
+	return l.len()
+}
+
+func (l *ListHead) lenCc() (cnt int) {
+	cnt = 0
+	var loopDetect map[*ListHead]bool
+
+	retry := false
+	_ = retry
+RETRY:
+	loopDetect = map[*ListHead]bool{}
+	for cur := l.Front(); !cur.Empty(); cur = cur.Next() {
+	EACH_RETRY:
+		if loopDetect[cur] {
+			fmt.Printf("loop")
+			retry = true
+			goto RETRY
+		}
+		loopDetect[cur] = true
+		if uintptr(unsafe.Pointer(cur.next))&1 > 0 {
+			loopDetect[cur] = false
+			goto EACH_RETRY
+		}
+
+		cnt++
+	}
+	return
+}
+
+func (l *ListHead) len() (cnt int) {
 
 	retry := 10
 RETRY:
@@ -632,6 +713,14 @@ RETRY:
 }
 
 func (l *ListHead) Front() (head *ListHead) {
+	if MODE_CONCURRENT {
+		return l.frontCc()
+	}
+
+	return l.front()
+}
+
+func (l *ListHead) front() (head *ListHead) {
 	isInfinit := map[*ListHead]bool{}
 
 	for head = l; head.Prev() != head; head = head.Prev() {
@@ -648,7 +737,85 @@ func (l *ListHead) Front() (head *ListHead) {
 	return
 }
 
+func (l *ListHead) frontCc() (head *ListHead) {
+
+	defer func() {
+
+		if head.prev == head && head.next != head {
+			fmt.Printf("start terminate? head.next.Empty()=%v\n", head.next.Empty())
+			return
+		}
+		if head.prev != head && head.next == head {
+			fmt.Printf("end terminate?")
+			return
+		}
+
+	}()
+
+	start := l
+
+	if start.IsPurged() {
+		start = start.Prev()
+		//start = start.ActiveList()
+	}
+	if start.Empty() && !start.Next().Empty() {
+		start = start.Next()
+	}
+	if start.Empty() && !start.Prev().Empty() {
+		start = start.Prev()
+	}
+
+	isInfinit := map[*ListHead]bool{}
+	for head = start; !head.Prev().Empty(); head = head.Prev() {
+		if head.IsFirst() {
+			return head
+		}
+		if isInfinit[head] {
+			panic("infinit loop")
+		}
+		isInfinit[head] = true
+	}
+	//panic("front not found")
+	//head = head.prepareFirst(false)
+	return
+}
+
 func (l *ListHead) Back() (head *ListHead) {
+	if MODE_CONCURRENT {
+		return l.backCc()
+	}
+	return l.back()
+
+}
+func (l *ListHead) backCc() (head *ListHead) {
+	isInfinit := map[*ListHead]bool{}
+
+	start := l
+
+	if start.IsPurged() {
+		start = start.Prev()
+		//start = start.ActiveList()
+	}
+	if start.Empty() && !start.Next().Empty() {
+		start = start.Next()
+	}
+	if start.Empty() && !start.Prev().Empty() {
+		start = start.Prev()
+	}
+
+	for head = l; !head.Next().Empty(); head = head.Next() {
+		if head.IsLast() {
+			return head
+		}
+		if isInfinit[head] {
+			panic("infinit loop")
+		}
+		isInfinit[head] = true
+	}
+	return
+}
+
+func (l *ListHead) back() (head *ListHead) {
 	isInfinit := map[*ListHead]bool{}
 
 	for head = l; head.Next() != head; head = head.Next() {
@@ -761,34 +928,30 @@ func (head *ListHead) Validate() error {
 		return errors.New("list not first element")
 	}
 
+	start := head
 RETRY:
 
 	hasCur := map[*ListHead]int{}
 	hasNext := map[*ListHead]int{}
 	cnt := 0
 
-	for cur, next := head, head.Next(); !next.IsLast(); cur, next = cur.Next(), next.Next() {
+	for cur, next := start, start.Next(); !next.IsLast(); cur, next = cur.Next(), next.Next() {
 		if _, ok := hasCur[cur]; ok {
-			return errors.New("this list is partial loop")
+			return fmt.Errorf("this list is partial loop cnt=%d hasCur[cur]=%d", cnt, hasCur[cur])
 		}
 		if _, ok := hasNext[next]; ok {
-			return errors.New("this list is partial loop")
+			fmt.Printf("this list is partial loop cur=%p next=%p\n", cur, next)
+			return fmt.Errorf("this list is partial loop cnt=%d hasNext[next]=%d", cnt, hasNext[next])
 		}
 		hasCur[cur] = cnt
 		hasNext[next] = cnt
 
 		if cur.isMarkedForDeleteWithoutError() {
-			err := cur.DeleteMarked()
-			if err != nil {
-				return err
-			}
+			start = cur.Prev()
 			goto RETRY
 		}
 		if next.isMarkedForDeleteWithoutError() {
-			err := cur.DeleteMarked()
-			if err != nil {
-				return err
-			}
+			start = cur.Prev()
 			goto RETRY
 		}
 		if cur.next != next {
@@ -812,4 +975,203 @@ RETRY:
 	}
 	return nil
 
+}
+
+func (head *ListHead) IsPurged() bool {
+	if !head.isMarkedForDeleteWithoutError() {
+		return false
+	}
+
+	return head.Prev().Next() != head
+
+}
+
+func (head *ListHead) Purge() (active *ListHead, purged *ListHead) {
+
+	if !head.canPurge() {
+		return head, nil
+	}
+	err := head.MarkForDelete()
+	if err != nil {
+		return head, nil
+	}
+	isSafety, _ := head.IsSafety()
+	if isSafety {
+		head.Init()
+	} else {
+		_ = isSafety
+	}
+	return nil, head
+}
+
+func (head *ListHead) AvoidNotAppend(err error) *ListHead {
+	switch err {
+	case ErrNotAppend:
+		if head.Prev().isMarkedForDeleteWithoutError() {
+			return head.Prev().AvoidNotAppend(ErrMarked)
+		}
+		return head.Prev()
+	case ErrMarked:
+		if head.Prev() == head {
+			return head
+		}
+		if head.Prev().isMarkedForDeleteWithoutError() {
+			return head.Prev().AvoidNotAppend(err)
+		}
+		//TODO: other error pattern
+	}
+	return head
+}
+
+func (head *ListHead) ActiveList() *ListHead {
+	if !head.IsPurged() {
+		return head
+	}
+	var active, purged *ListHead
+
+	active = head.Prev().Next()
+	purged = head
+	purged.Init()
+	return active
+
+}
+
+func (head *ListHead) canPurge() bool {
+
+	if head.prev == head {
+		return false
+	}
+
+	if head.next == head {
+		return false
+	}
+	return true
+}
+
+func (head *ListHead) canAdd() bool {
+
+	if head.next == head {
+		return false
+	}
+	return true
+}
+
+func Retry(cnt int, fn func(retry int) (done bool, err error)) error {
+	return retry(cnt, fn)
+}
+
+func retry(cnt int, fn func(retry int) (done bool, err error)) error {
+
+	stats := map[error]int{}
+	for i := 0; i < cnt; i++ {
+		if done, err := fn(i); done {
+			return err
+		} else if _, found := stats[err]; !found {
+			stats[err] = 1
+		} else {
+			stats[err]++
+		}
+	}
+	return NewError(ErrTOverRetyry, fmt.Errorf("reach retry limit err=%+v", stats))
+}
+
+func PrevNoM(oprev *ListHead) *ListHead {
+
+	prev := uintptr(unsafe.Pointer(oprev))
+	mask := uintptr(^uint(0)) ^ 1
+	if uintptr(prev)&1 == 0 {
+		return oprev
+	}
+
+	return PrevNoM((*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(oprev)) & mask)).prev)
+
+}
+
+func NextNoM(ocur *ListHead) *ListHead {
+
+	cur := uintptr(unsafe.Pointer(ocur))
+	mask := uintptr(^uint(0)) ^ 1
+	if uintptr(cur)&1 == 0 {
+		return ocur
+	}
+
+	return NextNoM((*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(cur)) & mask)).next)
+}
+
+func LastNoM(ocur *ListHead) *ListHead {
+
+	if ocur.next == ocur {
+		return ocur
+	}
+
+	return LastNoM(NextNoM(ocur).next)
+
+}
+
+func findByFn(head *ListHead, traverseFn func(*ListHead) *ListHead, condFn func(src, dst *ListHead) bool) (result *ListHead, nest int) {
+
+	nest = 0
+	for cur, next := head, traverseFn(head); !cur.Empty() && !next.Empty(); cur, next = next, traverseFn(next) {
+		if condFn(cur, next) {
+			return cur, nest
+		}
+		nest++
+	}
+	return nil, nest
+}
+
+func isFound(r *ListHead, n int) bool {
+	return r != nil
+}
+
+func (head *ListHead) findNextNoM(exptected *ListHead) (*ListHead, int) {
+	return findByFn(head,
+		func(c *ListHead) *ListHead {
+			if c == NextNoM(c) {
+				return c.next
+			}
+			return NextNoM(c)
+		},
+		func(src, dst *ListHead) bool {
+			return src == exptected
+		})
+}
+
+func (head *ListHead) findPrevNoM(exptected *ListHead) (*ListHead, int) {
+	return findByFn(head,
+		func(c *ListHead) *ListHead {
+			if c == PrevNoM(c) {
+				return c.prev
+			}
+			return PrevNoM(c)
+		},
+		func(src, dst *ListHead) bool {
+			return src == exptected
+		})
+}
+
+func (head *ListHead) IsMarked() bool {
+
+	if uintptr(unsafe.Pointer(head.prev))&1 > 0 {
+		return true
+	}
+	if uintptr(unsafe.Pointer(head.next))&1 > 0 {
+		return true
+	}
+	return false
+}
+
+func (head *ListHead) IsSafety() (bool, error) {
+
+	prev := PrevNoM(head.prev)
+	next := NextNoM(head.next)
+
+	if prev.next.IsMarked() {
+		return false, nil
+	}
+
+	if next.prev.IsMarked() {
+		return false, nil
+	}
+	return true, nil
 }
