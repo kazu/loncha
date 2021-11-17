@@ -150,6 +150,30 @@ func LFU() Opt {
 	return optalgorithm(TypeLFU)
 }
 
+func (c *Cache) Size() int {
+	return len(c.key2CacheHead)
+}
+
+func (c *Cache) Keys() (result []string) {
+	result = make([]string, 0, c.Size())
+
+	for k, _ := range c.key2CacheHead {
+		result = append(result, k)
+	}
+	return
+}
+
+func (c *Cache) ReverseEach(fn func(CacheEntry)) {
+	for cur := c.last.Prev(list_head.WaitNoM()); !cur.Empty(); cur = cur.Prev(list_head.WaitNoM()) {
+		r := c.DataFromListead(cur)
+		if !r.isRegister() {
+			break
+		}
+		fn(r)
+	}
+	return
+}
+
 func (c *Cache) GetByPool() (head *list_head.ListHead) {
 	c.cntOfunused--
 	v := c.unused.get()
