@@ -17,7 +17,13 @@
     slice からslice を変換
 - [ ] loncha.Parallel 
 - [X] sql like function(gen を使う)
-
-
 ## loncha.countaer_list
 
+## loncha.list_encabezado
+
+- [x] concurrent 対応
+  - [x] add のlock free 実装
+  - [x] delete のlock free 実装
+  - [x] add の二回目のcas が失敗したときのrollback の調査
+
+## loncha.ecache

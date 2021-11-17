@@ -1,6 +1,7 @@
 package ecache
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -24,6 +25,7 @@ const (
 
 const (
 	MaxOfDirtHandler = 10
+	MaxOfGc          = 1
 )
 
 var (
@@ -33,26 +35,29 @@ var (
 
 const MaxUint64 uint64 = 18446744073709551615
 
+const ValidateOnUpdate = false
+
 type Cache struct {
 	cType CacheType
 	cnt   uint64
 	max   uint64
 	sync.RWMutex
-	key2ListHead map[string]*list_head.ListHead
-	start        *list_head.ListHead
-	last         *list_head.ListHead
-	unused       sync.Pool
-	cntOfunused  uint64
-	empty        Record
+	key2CacheHead map[string]*list_head.ListHead
+	start         *list_head.ListHead
+	last          *list_head.ListHead
+	unused        CachePool
+	cntOfunused   uint64
+	empty         CacheEntry
 
-	dirties           chan *list_head.ListHead
+	dirties           chan *CacheHead
 	cntOfDirtyHandler int32
 
-	reqPool         sync.Pool
-	reqUList        chan *reqfUpdateList
-	cntOfReqHandler int32
-
-	startMu sync.RWMutex
+	gcMu        sync.Mutex
+	gcCtx       context.Context
+	gcCtxCancel context.CancelFunc
+	gcCh        chan bool
+	gcWg        *sync.WaitGroup
+	allocFn     func() CacheEntry
 }
 
 type reqfUpdateList struct {
@@ -64,27 +69,34 @@ type reqfUpdateList struct {
 type Opt func(c *Cache)
 
 func New(opts ...Opt) (c *Cache) {
+
+	list_head.MODE_CONCURRENT = true
+
 	c = &Cache{
-		cType:        TypeNone,
-		max:          MaxUint64,
-		key2ListHead: map[string]*list_head.ListHead{},
-		unused: sync.Pool{
-			New: func() interface{} { return new(list_head.ListHead) },
+		cType:         TypeNone,
+		max:           MaxUint64,
+		key2CacheHead: map[string]*list_head.ListHead{},
+		unused: &syncPool{
+			New: func() interface{} { return new(CacheHead) },
 		},
-		dirties:           make(chan *list_head.ListHead, MaxOfDirtHandler*10),
+		dirties:           make(chan *CacheHead, MaxOfDirtHandler*10),
 		cntOfDirtyHandler: 0,
-		reqUList:          make(chan *reqfUpdateList, MaxOfDirtHandler*1000),
-		cntOfReqHandler:   0,
-		reqPool: sync.Pool{
-			New: func() interface{} { return new(reqfUpdateList) },
-		},
+		gcCh:              make(chan bool, 4),
 	}
+
+	c.start = &list_head.ListHead{}
+	c.start.InitAsEmpty()
+	c.start = c.start.Prev()
+	c.last = c.start.Next()
+
+	//c.unused = &syncPool{}
+
 	for _, opt := range opts {
 		opt(c)
 	}
 
-	list_head.MODE_CONCURRENT = false
-
+	c.gcWg = &sync.WaitGroup{}
+	go c.gc()
 	return
 }
 
@@ -96,15 +108,29 @@ func Max(m int) Opt {
 	}
 }
 
-func AllocFn(fn func() interface{}) Opt {
+func PoolFn(fn func() interface{}) Opt {
 
 	return func(c *Cache) {
-		c.unused = sync.Pool{New: fn}
+		c.unused = &syncPool{New: fn}
+	}
+}
+
+func AllocFn(fn func() CacheEntry) Opt {
+
+	return func(c *Cache) {
+		c.allocFn = fn
+	}
+}
+
+func UseListPool() Opt {
+
+	return func(c *Cache) {
+		c.unused = &listPool{c: c}
 	}
 
 }
 
-func Sample(r Record) Opt {
+func Sample(r CacheEntry) Opt {
 
 	return func(c *Cache) {
 		c.empty = r
@@ -126,18 +152,16 @@ func LFU() Opt {
 
 func (c *Cache) GetByPool() (head *list_head.ListHead) {
 	c.cntOfunused--
-	v := c.unused.Get().(Record)
+	v := c.unused.get()
 	head = v.PtrListHead()
 	return
 }
 
 func (c *Cache) PushToPool(head *list_head.ListHead) {
 	c.cntOfunused++
-	if v, ok := c.empty.FromListHead(head).(Record); ok {
-		c.unused.Put(v)
-		return
-	}
-	c.unused.Put(head)
+	c.cnt--
+	v := EmptyCacheHead.fromListHead(head)
+	c.unused.put(v)
 	return
 }
 
@@ -154,48 +178,39 @@ func (c *Cache) startIsFront() bool {
 
 func (c *Cache) Reset() {
 
-	c.key2ListHead = map[string]*list_head.ListHead{}
+	c.key2CacheHead = map[string]*list_head.ListHead{}
 	if c.start == nil {
 		return
 	}
 
-	for {
-		if c.start == c.start.Next() {
-			c.PushToPool(c.start)
-			c.startMu.Lock()
-			c.start.Delete()
-			c.start = nil
-			c.startMu.Unlock()
-			break
+	if _, ok := c.unused.(*listPool); ok {
+
+		c.gcCtxCancel()
+		//c.gcWg.Wait()
+		c.gcMu.Lock()
+		c.gcMu.Unlock()
+		c.gcCh <- false
+
+		for l := c.start.Front(); !l.Empty(); l = l.Next(list_head.WaitNoM()) {
+			chead := EmptyCacheHead.fromListHead(l)
+			chead.expire()
 		}
-		c.startMu.Lock()
+		last := c.last.Prev(list_head.WaitNoM())
+		if last.IsLast() {
+			chead := EmptyCacheHead.fromListHead(last)
+			_ = chead
+		}
 
-		expire := c.start.Front()
-		c.start = c.start.Front().Next()
-		expire.Delete()
+		c.cntOfunused += c.cnt
+		c.cnt = 0
+		go c.gc()
 
-		c.startIsFront()
-		c.startMu.Unlock()
-
-		c.PushToPool(expire)
+		return
 	}
 
 	return
 
 }
-
-// func (c *Cache) moveUnused(k string) error {
-// 	hit, found := c.key2ListHead[k]
-// 	if !found {
-// 		return ErrorNotFound
-// 	}
-// 	c.Lock()
-// 	c.key2ListHead[k] = nil
-// 	c.Unlock()
-// 	hit.Delete()
-// 	c.PushToPool(hit)
-// 	return nil
-// }
 
 func (c *Cache) handleDirties() {
 	if atomic.LoadInt32(&c.cntOfDirtyHandler) >= MaxOfDirtHandler {
@@ -208,18 +223,16 @@ func (c *Cache) handleDirties() {
 		if dirty == nil {
 			break
 		}
-		dRecord := c.empty.FromListHead(dirty).(Record)
+		dRecord := c.empty.FromListHead(&dirty.ListHead).(Record)
 		c.setLazy(dRecord)
 	}
 	atomic.AddInt32(&c.cntOfDirtyHandler, -1)
 
 }
 
-func (c *Cache) Set(v Record) error {
+func (c *Cache) Set(v CacheEntry) error {
 
-	//return c.setLazy(v)
-
-	c.dirties <- v.PtrListHead()
+	c.dirties <- v.PtrCacheHead()
 	if atomic.LoadInt32(&c.cntOfDirtyHandler) < MaxOfDirtHandler {
 		go c.handleDirties()
 	}
@@ -228,295 +241,327 @@ func (c *Cache) Set(v Record) error {
 
 }
 
-func (c *Cache) SetFn(updateFn func(*list_head.ListHead) Record) error {
+func (c *Cache) SetFn(updateFn func(*list_head.ListHead) CacheEntry) error {
 
 	nr := updateFn(c.empty.PtrListHead())
 	k := nr.CacheKey()
 	c.RLock()
-	nHead, found := c.key2ListHead[k]
+	nHead, found := c.key2CacheHead[k]
 	c.RUnlock()
 	if !found {
 		nHead = c.GetByPool()
-	} else {
-		c.startMu.Lock()
-		nHead.Delete()
-		c.startMu.Unlock()
 	}
+	// else {
+	// 	nHead.Delete()
+	// }
 	updateFn(nHead)
-	nRec := c.empty.FromListHead(nHead).(Record)
+	nRec := c.empty.FromListHead(nHead).(CacheEntry)
 	c.Set(nRec)
 	return nil
+
+}
+
+func WaitNoM() list_head.TravOpt {
+
+	return list_head.WaitNoM()
+}
+
+func (c *Cache) ValidateReverse() error {
+
+	for cur, prev := c.last.Prev(WaitNoM()), c.last.Prev(WaitNoM()).Prev(WaitNoM()); !prev.Empty(); cur, prev = prev, prev.Prev(WaitNoM()) {
+
+		err := list_head.Retry(10, func(retry int) (exit bool, err error) {
+
+			if prev.Next(WaitNoM()) != cur {
+				prev = cur.Prev(WaitNoM())
+				return false, errors.New("prev.next != cur")
+			}
+			if cur.Prev(WaitNoM()) != prev {
+				prev = cur.Prev(WaitNoM())
+				return false, errors.New("cur.prev != prev")
+			}
+			return true, nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
+
+func (c *Cache) ValidateTiny() error {
+
+	return list_head.Retry(100, func(retry int) (done bool, err error) {
+		sb := c.start.Back()
+		sbn := sb.Next()
+		sbn2 := sb.Next()
+		_ = sbn2
+		if !sbn.Empty() {
+			return false, errors.New("not last")
+		}
+
+		if sbn.Empty() && c.last.Empty() && sbn != c.last {
+			lfp := c.last.Front().Prev()
+			_ = lfp
+			err := c.ValidateReverse()
+			_ = err
+			return false,
+				fmt.Errorf("c.start.Back().Next()[%p] != c.last[%p] ",
+					sbn, c.last)
+
+		}
+		if sbn != c.last {
+			return false,
+				fmt.Errorf("c.start.Back().Next()[%p] != c.last[%p] ",
+					sbn, c.last)
+			//errors.New("c.start.Back().Next() != c.last")
+		}
+		return true, nil
+	})
+
+}
+
+func (c *Cache) Validation() error {
+
+	lf := c.last.Front()
+	sf := c.start.Front()
+	lfb := lf.Back()
+	sfb := sf.Back()
+	_, _, _, _ = lf, sf, lfb, sfb
+
+	err := c.ValidateTiny()
+	if err != nil {
+		return err
+	}
+
+	for {
+		if c.start == nil {
+			return nil
+		}
+
+		if err := c.start.Front().Validate(); err != nil && err.Error() == "list not first element" {
+			continue
+		} else if err != nil {
+			c.start.Front().Validate()
+			return err
+		}
+		break
+	}
+	return nil
+}
+
+func (c *Cache) gc() {
+
+	//if c.gcCtx == nil {
+	c.gcCtx, c.gcCtxCancel = context.WithCancel(context.Background())
+	//}
+
+	for t := range c.gcCh {
+		if !t {
+			return
+		}
+		c._gc(c.gcCtx)
+	}
+}
+
+func (c *Cache) _gc(ctx context.Context) {
+
+	c.gcMu.Lock()
+	defer c.gcMu.Unlock()
+
+	if c.cnt+c.cntOfunused < c.max*2 {
+		return
+	}
+	if c.last == nil {
+		return
+	}
+
+	if c.start == nil {
+		return
+	}
+
+	// gc
+	for cur, prev := c.last.Prev(list_head.WaitNoM()), c.last.Prev(list_head.WaitNoM()).Prev(list_head.WaitNoM()); !prev.IsFirst(); cur, prev = prev, prev.Prev(list_head.WaitNoM()) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		//chead := EmptyCacheHead.fromListHead(cur)
+		cEntry := c.empty.FromListHead(cur).(CacheEntry)
+
+		if cEntry.cntOfRef() == 0 {
+			if cEntry.isRegister() {
+				c.Lock()
+				delete(c.key2CacheHead, cEntry.CacheKey())
+				c.Unlock()
+				c.cnt--
+
+			}
+			c.unused.put(cEntry.PtrCacheHead())
+			c.cntOfunused++
+		}
+		if c.cnt+c.cntOfunused < c.max*2 {
+			break
+		}
+	}
+
+	// goto second chanse
+	for cur, next := c.start.Front(), c.start.Front().Next(list_head.WaitNoM()); !next.Empty(); cur, next = next, next.Next(list_head.WaitNoM()) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// METNION: dont gc first element. becasuse first element delettion is heavy cost.
+		if cur.IsFirst() {
+			continue
+		}
+
+		//cEntry := c.empty.FromListHead(cur).(CacheEntry)
+		chead := EmptyCacheHead.fromListHead(cur)
+		if c.cType == TypeLFU {
+			atomic.AddInt32(&chead.reference, -1)
+			if chead.reference <= 0 {
+				//chead.Delete()
+				c.DeleteAndCheck(&chead.ListHead)
+				c.last = c.addLast(&chead.ListHead)
+			}
+			continue
+		}
+
+		if c.cType == TypeLRU {
+			if chead.cntOfRef() <= 0 {
+				c.DeleteAndCheck(&chead.ListHead)
+				//chead.Delete()
+				c.last = c.addLast(&chead.ListHead)
+				continue
+			}
+			if chead.cntOfRef() > 0 {
+				atomic.StoreInt32(&chead.reference, 0)
+			}
+			continue
+		}
+
+	}
+	return
+}
+
+func purgeResult(active *list_head.ListHead, purged *list_head.ListHead) (bool, *list_head.ListHead, *list_head.ListHead) {
+
+	if purged == nil {
+		return false, active, purged
+	}
+	return true, active, purged
+
+}
+
+func (c *Cache) DeleteAndCheck(l *list_head.ListHead) *list_head.ListHead {
+
+	success, active, purged := purgeResult(l.Purge())
+	_ = active
+	if !success {
+		fmt.Printf("fail purge")
+	}
+	if ValidateOnUpdate {
+		err := c.ValidateTiny()
+		if err != nil {
+			fmt.Printf("fail valdiate err=%s", err)
+		}
+
+	}
+
+	return purged
+
+}
+
+func (c *Cache) addLast(l *list_head.ListHead) *list_head.ListHead {
+
+	if l.IsMarked() {
+		_ = c
+	}
+	isSingle := l.IsSingle()
+	_ = isSingle
+	if !isSingle {
+		fmt.Printf("not single node")
+	}
+	resultLast, err := c.last.InsertBefore(l)
+	if err != nil || resultLast != c.last {
+		_ = "???"
+	}
+	return c.last
 
 }
 
 func (c *Cache) setLazy(v Record) error {
 
 	vhead := v.PtrListHead()
-	c.startMu.Lock()
 	vhead.Init()
-	c.startMu.Unlock()
 
 	k := v.CacheKey()
 
 	c.RLock()
-	hit, found := c.key2ListHead[k]
+	hit, found := c.key2CacheHead[k]
 	c.RUnlock()
 
 	defer func() {
-		if c.cnt >= c.max {
-			if c.last == nil {
-				c.startMu.Lock()
-				c.last = c.start.Back()
-				c.startMu.Unlock()
-			}
-
-			c.startMu.RLock()
-			last := c.last
-			c.last = c.last.Prev()
-			c.startMu.RUnlock()
-
-			c.startMu.Lock()
-			last.Delete()
-			c.startMu.Unlock()
-
-			if rec, found := c.empty.FromListHead(last).(Record); found {
-				c.Lock()
-				k := rec.CacheKey()
-				delete(c.key2ListHead, k)
-				c.Unlock()
-			}
-			c.PushToPool(last)
-			c.cnt--
+		if len(c.gcCh) == 0 {
+			c.gcCh <- true
 		}
 	}()
 
+	var hhead *CacheHead
+
 	if found && hit == v.PtrListHead() {
+		c.updateInfoOnAdd(hit)
 		goto AFTER
 	}
 	if found && hit != nil {
-		c.startMu.Lock()
-		if hit != hit.Prev() || hit != hit.Next() {
-			hit.Delete()
-		}
-		c.startMu.Unlock()
-
 		c.PushToPool(hit)
 	}
+	if !found && c.start != nil {
+		c.last = c.addLast(vhead)
+		c.cnt++
+	}
+
 	hit = vhead
 
+	if c.start != nil {
+		c.updateInfoOnAdd(hit)
+	}
+
 	c.Lock()
-	c.key2ListHead[k] = hit
+	c.key2CacheHead[k] = hit
+	hhead = EmptyCacheHead.fromListHead(hit)
+	if !hhead.isRegister() {
+		c.cnt++
+	}
+	hhead.regist(true)
 	c.Unlock()
 
-	c.startMu.Lock()
-	if c.start == nil {
-		c.start = hit
-		c.startIsFront()
-		c.startMu.Unlock()
-
-		return nil
-	}
-
 	c.startIsFront()
-	c.startMu.Unlock()
 
 AFTER:
-
-	if c.cType == TypeLFU {
-		c.startMu.Lock()
-		hit.Init()
-		if c.last == nil {
-			c.last = c.start.Back()
-		}
-		c.last.Add(hit)
-		c.last = hit
-		c.start = hit
-
-		c.startIsFront()
-		c.startMu.Unlock()
-
-	} else {
-		c.startMu.Lock()
-		hit.Init()
-		if c.start != nil && !c.start.IsFirst() {
-			c.start = c.start.Front()
-			c.startIsFront()
-		}
-		hit.Add(c.start.Front())
-		if !hit.IsFirst() || hit.Front() != hit {
-			fmt.Printf("not first?")
-		}
-		c.start = hit.Front()
-		c.startIsFront()
-		c.startMu.Unlock()
-
-	}
-	c.cnt++
 
 	return nil
 
 }
+func (c *Cache) updateInfoOnAdd(hit *list_head.ListHead) {
 
-func (c *Cache) setFnLazy(v Record, updateFn func(*list_head.ListHead) Record) error {
-
-	vhead := v.PtrListHead()
-	vhead.Init()
-
-	var k string
-	if updateFn == nil {
-		k = v.CacheKey()
-	} else {
-		nr := updateFn(c.empty.PtrListHead())
-		k = nr.CacheKey()
-	}
-
-	defer func() {
-		if c.cnt >= c.max {
-			c.startMu.Lock()
-			if c.last == nil {
-				c.last = c.start.Back()
-			}
-
-			last := c.last
-			c.last = c.last.Prev()
-
-			last.Delete()
-			c.startMu.Unlock()
-			if rec, found := c.empty.FromListHead(last).(Record); found {
-				c.Lock()
-				delete(c.key2ListHead, rec.CacheKey())
-				c.Unlock()
-			}
-			c.PushToPool(last)
-			c.cnt--
+	switch c.cType {
+	case TypeLFU:
+		chead := EmptyCacheHead.fromListHead(hit)
+		chead.referenced()
+		break
+	case TypeLRU:
+		chead := EmptyCacheHead.fromListHead(hit)
+		if chead.cntOfRef() != 2 {
+			chead.reference = 2
 		}
-
-	}()
-
-	if c.start != nil {
-		goto ADD
 	}
-	if updateFn != nil {
-		neoHead := c.GetByPool()
-
-		c.startMu.Lock()
-		neoHead.Init()
-		c.startMu.Unlock()
-
-		updateFn(neoHead)
-		c.Lock()
-		c.start = neoHead
-		c.key2ListHead[k] = neoHead
-
-		c.startIsFront()
-		c.Unlock()
-
-		c.cnt++
-		return nil
-
-	}
-	c.startMu.Lock()
-	vhead.Init()
-	c.startMu.Unlock()
-
-	c.Lock()
-
-	c.start = vhead
-	c.key2ListHead[k] = vhead
-
-	c.startIsFront()
-	c.Unlock()
-
-	c.cnt++
-	return nil
-
-ADD:
-
-	c.RLock()
-	hit, found := c.key2ListHead[k]
-	c.RUnlock()
-
-	if updateFn == nil {
-		goto ADD_NO_REUSE
-	}
-
-	if found {
-		c.startMu.Lock()
-		hit.Delete()
-		c.startMu.Unlock()
-		updateFn(hit)
-	} else {
-		hit = c.GetByPool()
-		updateFn(hit)
-		c.cnt++
-	}
-
-	c.Lock()
-	c.key2ListHead[k] = hit
-	c.Unlock()
-
-	c.startMu.Lock()
-	if c.cType == TypeLFU {
-
-		hit.Init()
-		if c.last != nil {
-			c.last = c.start.Back()
-		}
-		c.last.Add(hit)
-		c.start = hit
-		c.last = c.last.Back()
-
-	} else {
-		hit.Init()
-		hit.Add(c.start.Front())
-		c.start = hit
-	}
-
-	c.startIsFront()
-	c.startMu.Unlock()
-
-	return nil
-
-ADD_NO_REUSE:
-
-	c.startMu.Lock()
-	vhead.Init()
-	c.startMu.Unlock()
-
-	c.Lock()
-	c.key2ListHead[k] = vhead
-	c.Unlock()
-
-	if found {
-		c.startMu.Lock()
-		if hit == c.start {
-			c.start = hit.Delete()
-		} else {
-			hit.Delete()
-		}
-
-		c.startIsFront()
-		c.startMu.Unlock()
-
-		c.PushToPool(hit)
-	} else {
-		c.cnt++
-	}
-	c.startMu.Lock()
-	if c.cType == TypeLFU {
-		vhead.Add(c.start.Back())
-		c.start.Back().Add(vhead)
-		c.start = vhead
-	} else {
-		vhead.Add(c.start.Front())
-		c.start = vhead
-	}
-
-	c.startIsFront()
-	c.startMu.Unlock()
-
-	return nil
-
 }
 
 type Fetcher func(head *list_head.ListHead)
@@ -524,7 +569,7 @@ type Fetcher func(head *list_head.ListHead)
 func (c *Cache) Fetch(k string, fn Fetcher) error {
 
 	c.RLock()
-	hit, found := c.key2ListHead[k]
+	hit, found := c.key2CacheHead[k]
 	c.RUnlock()
 
 	if !found {
@@ -537,18 +582,18 @@ func (c *Cache) Fetch(k string, fn Fetcher) error {
 	}
 	fn(hit)
 
-	go c.PushReqOfUpdateList(k, hit, found)
+	c.updateList(k, hit, found)
 
 	return nil
 }
 
-func (c *Cache) DataFromListead(head *list_head.ListHead) (r Record) {
+func (c *Cache) DataFromListead(head *list_head.ListHead) (r CacheEntry) {
 	data := c.empty.FromListHead(head)
 	succ := false
 	if data == nil {
 		goto FAIL
 	}
-	r, succ = data.(Record)
+	r, succ = data.(CacheEntry)
 	if !succ {
 		goto FAIL
 	}
@@ -562,7 +607,7 @@ func (c *Cache) GetHead(k string) (hit *list_head.ListHead) {
 
 	c.RLock()
 	found := false
-	hit, found = c.key2ListHead[k]
+	hit, found = c.key2CacheHead[k]
 	c.RUnlock()
 	if !found {
 		return nil
@@ -571,27 +616,10 @@ func (c *Cache) GetHead(k string) (hit *list_head.ListHead) {
 
 }
 
-func (c *Cache) PushReqOfUpdateList(k string, hit *list_head.ListHead, found bool) {
-	//c.updateList(k, hit, found)
-
-	c.pushReqOfUpdateListCh(k, hit, found)
-}
-
-func (c *Cache) pushReqOfUpdateListCh(k string, hit *list_head.ListHead, found bool) {
-
-	req := c.reqPool.Get().(*reqfUpdateList)
-	req.k = k
-	req.hit = hit
-	req.found = found
-	c.reqUList <- req
-	go c.updateListLazy()
-
-}
-
-func (c *Cache) Get(k string) (r Record, e error) {
+func (c *Cache) Get(k string) (r CacheEntry, e error) {
 
 	c.RLock()
-	hit, found := c.key2ListHead[k]
+	hit, found := c.key2CacheHead[k]
 	c.RUnlock()
 
 	//return r, ErrorNotFound
@@ -612,52 +640,31 @@ func (c *Cache) Get(k string) (r Record, e error) {
 
 func (c *Cache) updateList(k string, hit *list_head.ListHead, found bool) {
 
-	c.startMu.Lock()
 	if found {
-		hit.Delete()
-	}
-	hit.Add(c.start.Front())
-	c.start = hit
-	if !c.start.IsFirst() {
-		c.start = c.start.Front()
-	}
-
-	c.startIsFront()
-	c.startMu.Unlock()
-
-	if !found {
-		c.Lock()
-		c.key2ListHead[k] = hit
-		c.Unlock()
-	}
-
-}
-
-func (c *Cache) updateListLazy() {
-	if atomic.LoadInt32(&c.cntOfReqHandler) >= MaxOfDirtHandler {
-		return
-	}
-
-	atomic.AddInt32(&c.cntOfReqHandler, 1)
-
-	for req := range c.reqUList {
-		if req == nil {
+		switch c.cType {
+		case TypeLFU:
+			chead := EmptyCacheHead.fromListHead(hit)
+			chead.referenced()
+			break
+		case TypeLRU:
+			chead := EmptyCacheHead.fromListHead(hit)
+			if chead.cntOfRef() != 2 {
+				chead.reference = 2
+			}
 			break
 		}
-		if req.found {
-			req.hit.Delete()
-		}
-		req.hit.Add(c.start.Front())
-		c.start = req.hit
-		c.startIsFront()
-		if !req.found {
-			c.Lock()
-			c.key2ListHead[req.k] = req.hit
-			c.Unlock()
-		}
-		c.reqPool.Put(req)
 	}
 
-	atomic.AddInt32(&c.cntOfReqHandler, -1)
-	return
+	if !found {
+		chead := EmptyCacheHead.fromListHead(hit)
+		if !chead.isRegister() {
+			c.cnt++
+		}
+		chead.regist(true)
+		c.Lock()
+		c.key2CacheHead[k] = hit
+		c.Unlock()
+
+	}
+
 }

@@ -113,6 +113,42 @@ func (head *ListHead) Append(new *ListHead) (*ListHead, error) {
 	return nlast2.append(new)
 }
 
+func (head *ListHead) InsertBefore(new *ListHead) (*ListHead, error) {
+
+	if new.IsMarked() {
+		if ok, _ := new.IsSafety(); ok {
+			new.Init()
+		} else {
+			return head, ErrNoSafetyOnAdd
+		}
+	}
+
+	// nlast, err := head.append(new)
+	// if err == nil {
+	// 	return nlast, err
+	// }
+	// nlast2 := nlast.AvoidNotAppend(err)
+	// return nlast2.append(new)
+	if !MODE_CONCURRENT {
+		head.add(new)
+		return new, nil
+	}
+	if head.isMarkedForDeleteWithoutError() {
+		return head, ErrMarked
+	}
+
+	// if head.prev.isMarkedForDeleteWithoutError() {
+	// 	return head, ErrMarked
+	// }
+	// if !head.prev.canAdd() {
+	// 	return head, ErrNotAppend
+	// }
+	nNode := toNode(new)
+	head.insertBefore(nNode)
+	return head, nil
+
+}
+
 func (head *ListHead) append(new *ListHead) (*ListHead, error) {
 	if !MODE_CONCURRENT {
 		head.add(new)
@@ -201,6 +237,37 @@ func (head *ListHead) add(new *ListHead) {
 		return
 	}
 	listAdd(new, head, head.next)
+}
+
+func (head *ListHead) insertBefore(new *ListHead) {
+	if MODE_CONCURRENT {
+		//retry := 0
+		var err error
+		if !new.IsSingle() {
+			fmt.Printf("Warn: insert element must be single node\n")
+		}
+		next := head
+		prev := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
+		err = retry(100, func(retry int) (finish bool, err error) {
+			err = listAddWitCas(new,
+				prev,
+				next)
+			if err == nil {
+				return true, err
+			}
+
+			prev = (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
+			AddRecoverState("cas retry")
+			return false, err
+		})
+
+		if err != nil {
+			fmt.Printf("add(): over retry retry=%d err=%s\n", 100, err.Error())
+		}
+
+		return
+	}
+	listAdd(new, head.prev, head)
 }
 
 func (head *ListHead) Join(new *ListHead) {
