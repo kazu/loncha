@@ -17,12 +17,6 @@ func (l *ListHead) InsertAfter(vl List) *ListHead {
 	return v
 }
 
-func (l *ListHead) InsertBefore(vl List) *ListHead {
-	v := vl.PtrListHead()
-	l.Prev().add(v)
-	return v
-}
-
 // MoveAfter ... moves element e to its new position after mark.
 // If e is not an element of l, or e == mark, the list is not modified.
 func (l *ListHead) MoveAfter(vl List) *ListHead {
