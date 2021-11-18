@@ -49,7 +49,7 @@ type Cache struct {
 	cntOfunused   uint64
 	empty         CacheEntry
 
-	dirties           chan *CacheHead
+	dirties           chan reqStore
 	cntOfDirtyHandler int32
 
 	gcMu        sync.Mutex
@@ -66,6 +66,12 @@ type reqfUpdateList struct {
 	found bool
 }
 
+type reqStore struct {
+	record Record
+	append bool
+	stop   bool
+}
+
 type Opt func(c *Cache)
 
 func New(opts ...Opt) (c *Cache) {
@@ -79,7 +85,7 @@ func New(opts ...Opt) (c *Cache) {
 		unused: &syncPool{
 			New: func() interface{} { return new(CacheHead) },
 		},
-		dirties:           make(chan *CacheHead, MaxOfDirtHandler*10),
+		dirties:           make(chan reqStore, MaxOfDirtHandler*10),
 		cntOfDirtyHandler: 0,
 		gcCh:              make(chan bool, 4),
 	}
@@ -167,7 +173,7 @@ func (c *Cache) ReverseEach(fn func(CacheEntry)) {
 	for cur := c.last.Prev(list_head.WaitNoM()); !cur.Empty(); cur = cur.Prev(list_head.WaitNoM()) {
 		r := c.DataFromListead(cur)
 		if !r.isRegister() {
-			break
+			continue
 		}
 		fn(r)
 	}
@@ -244,19 +250,22 @@ func (c *Cache) handleDirties() {
 	atomic.AddInt32(&c.cntOfDirtyHandler, 1)
 
 	for dirty := range c.dirties {
-		if dirty == nil {
+		if dirty.stop {
 			break
 		}
-		dRecord := c.empty.FromListHead(&dirty.ListHead).(Record)
-		c.setLazy(dRecord)
+		c.setLazy(dirty)
 	}
 	atomic.AddInt32(&c.cntOfDirtyHandler, -1)
 
 }
 
-func (c *Cache) Set(v CacheEntry) error {
+func (c *Cache) Set(r Record) error {
 
-	c.dirties <- v.PtrCacheHead()
+	return c.set(r, true)
+}
+func (c *Cache) set(r Record, append bool) error {
+
+	c.dirties <- reqStore{record: r, append: append, stop: false}
 	if atomic.LoadInt32(&c.cntOfDirtyHandler) < MaxOfDirtHandler {
 		go c.handleDirties()
 	}
@@ -279,8 +288,8 @@ func (c *Cache) SetFn(updateFn func(*list_head.ListHead) CacheEntry) error {
 	// 	nHead.Delete()
 	// }
 	updateFn(nHead)
-	nRec := c.empty.FromListHead(nHead).(CacheEntry)
-	c.Set(nRec)
+	nRec := c.empty.FromListHead(nHead).(Record)
+	c.set(nRec, false)
 	return nil
 
 }
@@ -520,10 +529,13 @@ func (c *Cache) addLast(l *list_head.ListHead) *list_head.ListHead {
 
 }
 
-func (c *Cache) setLazy(v Record) error {
+func (c *Cache) setLazy(req reqStore) error {
+	v := req.record
 
 	vhead := v.PtrListHead()
-	vhead.Init()
+	if req.append {
+		vhead.Init()
+	}
 
 	k := v.CacheKey()
 
@@ -547,7 +559,9 @@ func (c *Cache) setLazy(v Record) error {
 		c.PushToPool(hit)
 	}
 	if !found && c.start != nil {
-		c.last = c.addLast(vhead)
+		if req.append {
+			c.last = c.addLast(vhead)
+		}
 		c.cnt++
 	}
 

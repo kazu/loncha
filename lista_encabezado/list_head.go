@@ -316,6 +316,10 @@ func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 	}
 
 	err := retry(100, func(retry int) (exit bool, err error) {
+		if head.IsMarked() {
+			_ = "lost current marked"
+		}
+
 		nextElement = head.DirectNext()
 
 		defer func() {
@@ -1086,6 +1090,11 @@ func (l *ListHead) backCc() (head *ListHead) {
 		if head.IsMarked() {
 			retry = 2
 			head = prev
+			if head.Empty() || head.IsSingle() {
+				prevIsSIngle := prev.IsSingle()
+				_ = prevIsSIngle
+				_ = "lost empty node"
+			}
 			goto RETRYMARKED
 		}
 		if head.IsLast() {

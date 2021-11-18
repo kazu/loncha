@@ -262,7 +262,7 @@ func (head *ListHead) insertBefore(new *ListHead) {
 		})
 
 		if err != nil {
-			fmt.Printf("add(): over retry retry=%d err=%s\n", 100, err.Error())
+			fmt.Printf("insertBefore(): over retry retry=%d err=%s\n", 100, err.Error())
 		}
 
 		return

@@ -120,6 +120,9 @@ func (cp *listPool) get() (chead *CacheHead) {
 		}
 
 	}
+	if cp.c.start.Prev(list_head.WaitNoM()).Empty() && cp.c.start.Next(list_head.WaitNoM()).Empty() {
+		goto ALLOC
+	}
 
 	chead = EmptyCacheHead.fromListHead(cp.c.start.Front().Next(list_head.WaitNoM()))
 	cp.unused = chead.Next(list_head.WaitNoM())
@@ -130,7 +133,8 @@ ALLOC:
 	chead.Init()
 	chead.referenced()
 	//chead.regist(true)
-	cp.c.last = cp.c.addLast(&chead.ListHead)
+	head := &chead.ListHead
+	cp.c.last = cp.c.addLast(head)
 
 	return chead
 }

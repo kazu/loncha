@@ -18,6 +18,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/coocood/freecache"
 	"github.com/golang/groupcache/lru"
+	"github.com/kazu/loncha"
 	"github.com/kazu/loncha/ecache"
 	list_head "github.com/kazu/loncha/lista_encabezado"
 	"github.com/pingcap/go-ycsb/pkg/generator"
@@ -536,4 +537,88 @@ func Test_CacheEntry(t *testing.T) {
 
 	assert.Equal(t, "a", rr.Key)
 
+}
+
+type Result struct {
+	QueryType byte
+	Query     string
+	Result    string
+	ecache.CacheHead
+}
+
+func (r *Result) CacheKey() string {
+	return r.Query
+}
+
+func (r *Result) Offset() uintptr {
+	return unsafe.Offsetof(r.ListHead)
+}
+
+func (r *Result) FromListHead(head *list_head.ListHead) list_head.List {
+	return (*Result)(list_head.ElementOf(&Result{}, head))
+}
+
+func (r *Result) PtrCacheHead() *ecache.CacheHead {
+	return &(r.CacheHead)
+}
+
+func Test_SetFn(t *testing.T) {
+
+	cache := ecache.New(
+		ecache.Max(20),
+		ecache.Sample(&Result{}),
+		ecache.UseListPool(),
+		ecache.AllocFn(func() ecache.CacheEntry { return new(Result) }),
+		ecache.LRU())
+
+	err := cache.SetFn(func(l *list_head.ListHead) ecache.CacheEntry {
+		rec := cache.DataFromListead(l)
+		data, succ := rec.(*Result)
+		if !succ {
+			return data
+		}
+		data.QueryType = 1
+		data.Query = "query1"
+		data.Result = "result1"
+		return data
+	})
+
+	assert.NoError(t, err)
+
+	err = cache.SetFn(func(l *list_head.ListHead) ecache.CacheEntry {
+		rec := cache.DataFromListead(l)
+		data, succ := rec.(*Result)
+		if !succ {
+			return data
+		}
+		data.QueryType = 1
+		data.Query = "query2"
+		data.Result = "result2"
+		return data
+	})
+
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Millisecond)
+
+	d, e := cache.Get("query1")
+	assert.NoError(t, e)
+	r, ok := d.(*Result)
+
+	assert.NotNil(t, r)
+	assert.True(t, ok)
+	assert.Equal(t, "query1", r.CacheKey())
+	assert.Equal(t, "result1", r.Result)
+
+	cnt := 0
+	keys := []string{"query1", "query2"}
+
+	cache.ReverseEach(func(c ecache.CacheEntry) {
+		cnt++
+		found := loncha.Contain(&keys, func(i int) bool {
+			return keys[i] == c.CacheKey()
+		})
+		assert.True(t, found)
+	})
+	assert.Equal(t, 2, cnt)
 }
