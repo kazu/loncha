@@ -25,5 +25,9 @@
   - [x] add のlock free 実装
   - [x] delete のlock free 実装
   - [x] add の二回目のcas が失敗したときのrollback の調査
+- [x] concurrent map 追加
+  - [ ] read map cache
+  - [ ] support interface key
+  - [ ] sharding by key  
 
 ## loncha.ecache

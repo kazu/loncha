@@ -38,11 +38,10 @@ const MaxUint64 uint64 = 18446744073709551615
 const ValidateOnUpdate = false
 
 type Cache struct {
-	cType CacheType
-	cnt   uint64
-	max   uint64
-	sync.RWMutex
-	key2CacheHead map[string]*list_head.ListHead
+	cType         CacheType
+	cnt           uint64
+	max           uint64
+	key2CacheHead list_head.Map
 	start         *list_head.ListHead
 	last          *list_head.ListHead
 	unused        CachePool
@@ -81,7 +80,7 @@ func New(opts ...Opt) (c *Cache) {
 	c = &Cache{
 		cType:         TypeNone,
 		max:           MaxUint64,
-		key2CacheHead: map[string]*list_head.ListHead{},
+		key2CacheHead: list_head.Map{},
 		unused: &syncPool{
 			New: func() interface{} { return new(CacheHead) },
 		},
@@ -157,17 +156,17 @@ func LFU() Opt {
 }
 
 func (c *Cache) Size() int {
-	return len(c.key2CacheHead)
+	return c.key2CacheHead.Len()
 }
 
-func (c *Cache) Keys() (result []string) {
-	result = make([]string, 0, c.Size())
+// func (c *Cache) Keys() (result []string) {
+// 	// result = make([]string, 0, c.Size())
 
-	for k, _ := range c.key2CacheHead {
-		result = append(result, k)
-	}
-	return
-}
+// 	// for k, _ := range c.key2CacheHead {
+// 	// 	result = append(result, k)
+// 	// }
+// 	return c.key2CacheHead.key
+// }
 
 func (c *Cache) ReverseEach(fn func(CacheEntry)) {
 	for cur := c.last.Prev(list_head.WaitNoM()); !cur.Empty(); cur = cur.Prev(list_head.WaitNoM()) {
@@ -208,7 +207,7 @@ func (c *Cache) startIsFront() bool {
 
 func (c *Cache) Reset() {
 
-	c.key2CacheHead = map[string]*list_head.ListHead{}
+	c.key2CacheHead = list_head.Map{}
 	if c.start == nil {
 		return
 	}
@@ -278,9 +277,7 @@ func (c *Cache) SetFn(updateFn func(*list_head.ListHead) CacheEntry) error {
 
 	nr := updateFn(c.empty.PtrListHead())
 	k := nr.CacheKey()
-	c.RLock()
-	nHead, found := c.key2CacheHead[k]
-	c.RUnlock()
+	nHead, found := c.key2CacheHead.Get(k)
 	if !found {
 		nHead = c.GetByPool()
 	}
@@ -427,9 +424,7 @@ func (c *Cache) _gc(ctx context.Context) {
 
 		if cEntry.cntOfRef() == 0 {
 			if cEntry.isRegister() {
-				c.Lock()
-				delete(c.key2CacheHead, cEntry.CacheKey())
-				c.Unlock()
+				c.key2CacheHead.Delete(cEntry.CacheKey())
 				c.cnt--
 
 			}
@@ -539,9 +534,7 @@ func (c *Cache) setLazy(req reqStore) error {
 
 	k := v.CacheKey()
 
-	c.RLock()
-	hit, found := c.key2CacheHead[k]
-	c.RUnlock()
+	hit, found := c.key2CacheHead.Get(k)
 
 	defer func() {
 		if len(c.gcCh) == 0 {
@@ -571,14 +564,12 @@ func (c *Cache) setLazy(req reqStore) error {
 		c.updateInfoOnAdd(hit)
 	}
 
-	c.Lock()
-	c.key2CacheHead[k] = hit
+	c.key2CacheHead.Set(k, hit)
 	hhead = EmptyCacheHead.fromListHead(hit)
 	if !hhead.isRegister() {
 		c.cnt++
 	}
 	hhead.regist(true)
-	c.Unlock()
 
 	c.startIsFront()
 
@@ -606,9 +597,7 @@ type Fetcher func(head *list_head.ListHead)
 
 func (c *Cache) Fetch(k string, fn Fetcher) error {
 
-	c.RLock()
-	hit, found := c.key2CacheHead[k]
-	c.RUnlock()
+	hit, found := c.key2CacheHead.Get(k)
 
 	if !found {
 		return ErrorNotFound
@@ -643,10 +632,8 @@ FAIL:
 }
 func (c *Cache) GetHead(k string) (hit *list_head.ListHead) {
 
-	c.RLock()
 	found := false
-	hit, found = c.key2CacheHead[k]
-	c.RUnlock()
+	hit, found = c.key2CacheHead.Get(k)
 	if !found {
 		return nil
 	}
@@ -656,9 +643,7 @@ func (c *Cache) GetHead(k string) (hit *list_head.ListHead) {
 
 func (c *Cache) Get(k string) (r CacheEntry, e error) {
 
-	c.RLock()
-	hit, found := c.key2CacheHead[k]
-	c.RUnlock()
+	hit, found := c.key2CacheHead.Get(k)
 
 	//return r, ErrorNotFound
 
@@ -699,9 +684,7 @@ func (c *Cache) updateList(k string, hit *list_head.ListHead, found bool) {
 			c.cnt++
 		}
 		chead.regist(true)
-		c.Lock()
-		c.key2CacheHead[k] = hit
-		c.Unlock()
+		c.key2CacheHead.Set(k, hit)
 
 	}
 
