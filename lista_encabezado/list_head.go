@@ -157,7 +157,8 @@ const (
 )
 
 type ModeTraverse struct {
-	t TraverseType
+	t  TraverseType
+	Mu func(*ListHead) *sync.RWMutex
 }
 
 type TravOpt func(*ModeTraverse)
@@ -172,6 +173,12 @@ func Trav(t TraverseType) TravOpt {
 func WaitNoM() TravOpt {
 
 	return Trav(TravWaitNoMark)
+}
+
+func Lock(fn func(*ListHead) *sync.RWMutex) TravOpt {
+	return func(m *ModeTraverse) {
+		m.Mu = fn
+	}
 }
 
 func InitAfterSafety(retry int) func(*ListHead) error {
@@ -193,6 +200,10 @@ func (head *ListHead) Prev(opts ...TravOpt) (prev *ListHead) {
 	mode := ModeTraverse{t: TravDirect}
 	for _, opt := range opts {
 		opt(&mode)
+	}
+	if mode.Mu != nil {
+		mode.Mu(head).RLock()
+		defer mode.Mu(head).RUnlock()
 	}
 
 	err := retry(100, func(retry int) (exit bool, err error) {
@@ -313,6 +324,11 @@ func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 	mode := ModeTraverse{t: TravDirect}
 	for _, opt := range opts {
 		opt(&mode)
+	}
+
+	if mode.Mu != nil {
+		mode.Mu(head).RLock()
+		defer mode.Mu(head).RUnlock()
 	}
 
 	err := retry(100, func(retry int) (exit bool, err error) {
@@ -547,10 +563,16 @@ var mu4Add *mutex = newMutex(false)
 //  prev ---------------> next
 //        \--> new --/
 //   prev --> next     prev ---> new
-func listAddWitCas(new, prev, next *ListHead) (err error) {
+func listAddWitCas(new, prev, next *ListHead, fn func(*ListHead) *sync.RWMutex) (err error) {
 	// backup for roolback
 	oNewPrev := uintptr(unsafe.Pointer(new.prev))
 	oNewNext := uintptr(unsafe.Pointer(new.next))
+	if fn != nil {
+		fn(prev).Lock()
+		defer fn(prev).Unlock()
+		fn(next).Lock()
+		defer fn(next).Unlock()
+	}
 	rollback := func(new *ListHead) {
 		StoreListHead(&new.prev, (*ListHead)(unsafe.Pointer(oNewPrev)))
 		StoreListHead(&new.next, (*ListHead)(unsafe.Pointer(oNewNext)))
@@ -586,7 +608,12 @@ ROLLBACK:
 
 }
 
-func (l *ListHead) MarkForDelete() (err error) {
+func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
+
+	mode := ModeTraverse{t: TravDirect}
+	for _, opt := range opts {
+		opt(&mode)
+	}
 
 	if !l.canPurge() {
 		return ErrNotMarked
@@ -607,6 +634,14 @@ func (l *ListHead) MarkForDelete() (err error) {
 	err = retry(100, func(retry int) (fin bool, err error) {
 		prev1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.prev)) & mask))
 		next1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.next)) & mask))
+		if mode.Mu != nil {
+			mode.Mu(prev1).Lock()
+			defer mode.Mu(prev1).Unlock()
+			mode.Mu(l).Lock()
+			defer mode.Mu(l).Unlock()
+			mode.Mu(next1).Lock()
+			defer mode.Mu(next1).Unlock()
+		}
 
 		prev := prev1
 		next := next1
@@ -624,9 +659,18 @@ func (l *ListHead) MarkForDelete() (err error) {
 			AddRecoverState("remove: retry marked prev")
 			return false, ErrDeketeStep1
 		}
+		mode.Mu(prev1).Lock()
+		defer mode.Mu(prev1).Unlock()
 
 		prev2 := PrevNoM(l.prev)
 		next2 := NextNoM(l.next)
+		if mode.Mu != nil {
+			mode.Mu(prev2).Lock()
+			defer mode.Mu(prev2).Unlock()
+			mode.Mu(next2).Lock()
+			defer mode.Mu(next2).Unlock()
+		}
+
 		_, _ = prev2, next2
 
 		prevs := []**ListHead{&prev1.next, &prev2.next}

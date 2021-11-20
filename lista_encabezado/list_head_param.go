@@ -208,10 +208,14 @@ func (head *ListHead) isNext(next *ListHead) bool {
 
 }
 
-func (head *ListHead) add(new *ListHead) {
+func (head *ListHead) add(new *ListHead, opts ...TravOpt) {
 	if MODE_CONCURRENT {
 		//retry := 0
 		var err error
+		mode := ModeTraverse{t: TravDirect}
+		for _, opt := range opts {
+			opt(&mode)
+		}
 		if !new.IsSingle() {
 			fmt.Printf("Warn: insert element must be single node\n")
 		}
@@ -220,7 +224,7 @@ func (head *ListHead) add(new *ListHead) {
 		err = retry(100, func(retry int) (finish bool, err error) {
 			err = listAddWitCas(new,
 				prev,
-				next)
+				next, mode.Mu)
 			if err == nil {
 				return true, err
 			}
@@ -239,19 +243,25 @@ func (head *ListHead) add(new *ListHead) {
 	listAdd(new, head, head.next)
 }
 
-func (head *ListHead) insertBefore(new *ListHead) {
+func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) {
 	if MODE_CONCURRENT {
 		//retry := 0
 		var err error
+		mode := ModeTraverse{t: TravDirect}
+		for _, opt := range opts {
+			opt(&mode)
+		}
+
 		if !new.IsSingle() {
 			fmt.Printf("Warn: insert element must be single node\n")
 		}
+
 		next := head
 		prev := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
 		err = retry(100, func(retry int) (finish bool, err error) {
 			err = listAddWitCas(new,
 				prev,
-				next)
+				next, mode.Mu)
 			if err == nil {
 				return true, err
 			}
