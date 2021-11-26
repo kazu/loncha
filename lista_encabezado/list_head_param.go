@@ -248,6 +248,7 @@ func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) {
 		//retry := 0
 		var err error
 		mode := ModeTraverse{t: TravDirect}
+		defer mode.Error()
 		for _, opt := range opts {
 			opt(&mode)
 		}
@@ -272,7 +273,8 @@ func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) {
 		})
 
 		if err != nil {
-			fmt.Printf("insertBefore(): over retry retry=%d err=%s\n", 100, err.Error())
+			//fmt.Printf("insertBefore(): over retry retry=%d err=%s\n", 100, err.Error())
+			mode.e = err
 		}
 
 		return

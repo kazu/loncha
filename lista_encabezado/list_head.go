@@ -159,6 +159,16 @@ const (
 type ModeTraverse struct {
 	t  TraverseType
 	Mu func(*ListHead) *sync.RWMutex
+	e  error
+}
+
+var DefaultModeTraverse *ModeTraverse = &ModeTraverse{t: TravDirect}
+
+func (mode ModeTraverse) Error() string {
+	if mode.e != nil {
+		return mode.e.Error()
+	}
+	return ""
 }
 
 type TravOpt func(*ModeTraverse)
@@ -198,10 +208,11 @@ func InitAfterSafety(retry int) func(*ListHead) error {
 func (head *ListHead) Prev(opts ...TravOpt) (prev *ListHead) {
 
 	mode := ModeTraverse{t: TravDirect}
+	defer mode.Error()
 	for _, opt := range opts {
 		opt(&mode)
 	}
-	if mode.Mu != nil {
+	if !head.Empty() && mode.Mu != nil {
 		mode.Mu(head).RLock()
 		defer mode.Mu(head).RUnlock()
 	}
@@ -237,7 +248,7 @@ func (head *ListHead) Prev(opts ...TravOpt) (prev *ListHead) {
 	})
 	if err != nil {
 		// FIXME: log warning
-		_ = "over retry?"
+		mode.e = err
 	}
 
 	return prev
@@ -321,15 +332,25 @@ func (head *ListHead) rewriteResultOnPrev(mode ModeTraverse, prev *ListHead, oex
 func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 	//MENTION: ignore error. should use NextWithError()
 
-	mode := ModeTraverse{t: TravDirect}
+	//return head.next
+
+	//mode := ModeTraverse{t: TravDirect}
+	mode := DefaultModeTraverse
+
+	//return head.next
+
+	defer mode.Error()
+
 	for _, opt := range opts {
-		opt(&mode)
+		//opt(&mode)
+		opt(mode)
 	}
 
-	if mode.Mu != nil {
+	if !head.Empty() && mode.Mu != nil {
 		mode.Mu(head).RLock()
 		defer mode.Mu(head).RUnlock()
 	}
+	//return head.next
 
 	err := retry(100, func(retry int) (exit bool, err error) {
 		if head.IsMarked() {
@@ -339,7 +360,7 @@ func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 		nextElement = head.DirectNext()
 
 		defer func() {
-			exit, err = head.rewriteResultOnNext(mode, nextElement, exit, err)
+			exit, err = head.rewriteResultOnNext(*mode, nextElement, exit, err)
 		}()
 
 		if !nextElement.IsMarked() {
@@ -364,7 +385,7 @@ func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 	})
 	if err != nil {
 		//FIXME: log warning
-		_ = "retry limit"
+		mode.e = err
 	}
 	return
 }
@@ -568,10 +589,14 @@ func listAddWitCas(new, prev, next *ListHead, fn func(*ListHead) *sync.RWMutex) 
 	oNewPrev := uintptr(unsafe.Pointer(new.prev))
 	oNewNext := uintptr(unsafe.Pointer(new.next))
 	if fn != nil {
-		fn(prev).Lock()
-		defer fn(prev).Unlock()
-		fn(next).Lock()
-		defer fn(next).Unlock()
+		if !prev.Empty() {
+			fn(prev).Lock()
+			defer fn(prev).Unlock()
+		}
+		if !next.Empty() {
+			fn(next).Lock()
+			defer fn(next).Unlock()
+		}
 	}
 	rollback := func(new *ListHead) {
 		StoreListHead(&new.prev, (*ListHead)(unsafe.Pointer(oNewPrev)))
@@ -611,6 +636,7 @@ ROLLBACK:
 func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 
 	mode := ModeTraverse{t: TravDirect}
+	defer mode.Error()
 	for _, opt := range opts {
 		opt(&mode)
 	}
@@ -635,12 +661,16 @@ func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 		prev1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.prev)) & mask))
 		next1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.next)) & mask))
 		if mode.Mu != nil {
-			mode.Mu(prev1).Lock()
-			defer mode.Mu(prev1).Unlock()
+			if !prev1.Empty() {
+				mode.Mu(prev1).Lock()
+				defer mode.Mu(prev1).Unlock()
+			}
 			mode.Mu(l).Lock()
 			defer mode.Mu(l).Unlock()
-			mode.Mu(next1).Lock()
-			defer mode.Mu(next1).Unlock()
+			if !next1.Empty() {
+				mode.Mu(next1).Lock()
+				defer mode.Mu(next1).Unlock()
+			}
 		}
 
 		prev := prev1
@@ -659,16 +689,21 @@ func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 			AddRecoverState("remove: retry marked prev")
 			return false, ErrDeketeStep1
 		}
-		mode.Mu(prev1).Lock()
-		defer mode.Mu(prev1).Unlock()
-
+		if !prev1.Empty() {
+			mode.Mu(prev1).Lock()
+			defer mode.Mu(prev1).Unlock()
+		}
 		prev2 := PrevNoM(l.prev)
 		next2 := NextNoM(l.next)
 		if mode.Mu != nil {
-			mode.Mu(prev2).Lock()
-			defer mode.Mu(prev2).Unlock()
-			mode.Mu(next2).Lock()
-			defer mode.Mu(next2).Unlock()
+			if !prev2.Empty() {
+				mode.Mu(prev2).Lock()
+				defer mode.Mu(prev2).Unlock()
+			}
+			if !next2.Empty() {
+				mode.Mu(next2).Lock()
+				defer mode.Mu(next2).Unlock()
+			}
 		}
 
 		_, _ = prev2, next2
@@ -716,7 +751,7 @@ func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 	})
 
 	if err != nil {
-		_ = err
+		mode.e = err
 	}
 
 	return err
@@ -1047,7 +1082,7 @@ func (l *ListHead) frontCc() (head *ListHead) {
 			goto RETRY
 		}
 		if head.prev != head && head.next == head {
-			fmt.Printf("end terminate?")
+			_ = "end terminate?"
 			return
 		}
 
@@ -1540,4 +1575,20 @@ func (head *ListHead) IsSafety() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (head *ListHead) CountTo(dst *ListHead) (cnt int) {
+
+	cnt = 0
+
+	for cur := head; !head.Empty(); cur = cur.Next(WaitNoM()) {
+
+		if cur == dst {
+			return
+		}
+		cnt++
+	}
+
+	return cnt
+
 }
