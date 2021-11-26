@@ -25,9 +25,10 @@ const (
 	ReversSearchForBucket            = 1
 	NestedSearchForBucket            = 2
 	CombineSearch                    = 3
+	CombineSearch2                   = 4
 
-	NoItemSearchForBucket = 4 // test mode
-	FalsesSearchForBucket = 5
+	NoItemSearchForBucket = 9 // test mode
+	FalsesSearchForBucket = 10
 )
 
 type HMap struct {
@@ -354,16 +355,8 @@ func (h *HMap) _get(k, conflict uint64) (*entryHMap, bool) {
 	case NestedSearchForBucket:
 		bucket = h.searchBucket4(k)
 
-		// rk := bits.Reverse64(k)
-		// _ = rk
-		// be := entryHMapFromListHead(bucket.start.Prev().Next())
-		// bek := bits.Reverse64(be.k)
-		// _ = bek
-		// if bucket.reverse > bits.Reverse64(k) {
-		// 	_ = "???"
-		// }
 		break
-	case CombineSearch:
+	case CombineSearch, CombineSearch2:
 
 		e := h.searchKey(k, true)
 		if e == nil {
@@ -1360,10 +1353,11 @@ type statKey byte
 var EnableStats bool = false
 
 const (
-	CntSearchBucket statKey = 1
-	CntLevelBucket  statKey = 2
-	CntSearchEntry  statKey = 3
-	CntOfGet        statKey = 4
+	CntSearchBucket  statKey = 1
+	CntLevelBucket   statKey = 2
+	CntSearchEntry   statKey = 3
+	CntReverseSearch statKey = 4
+	CntOfGet         statKey = 5
 )
 
 var DebugStats map[statKey]int = map[statKey]int{}
@@ -1455,6 +1449,13 @@ func (b *bucket) entry() *entryHMap {
 	return b.NextEntry()
 
 }
+func (e *entryHMap) nextNoCheck() *entryHMap {
+	return entryHMapFromListHead(e.ListHead.next)
+}
+
+func (e *entryHMap) prevNoCheck() *entryHMap {
+	return entryHMapFromListHead(e.ListHead.prev)
+}
 
 func (e *entryHMap) nextAsE() *entryHMap {
 	start := &e.ListHead
@@ -1533,8 +1534,22 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 	found := false
 	var bCur *bucket
 
+	levels := [16]*bucket{}
+
+	var setLevelCache func(b *bucket)
+	if h.modeForBucket == CombineSearch2 {
+
+		levels[level-1] = topLevelBucket //uintptr(unsafe.Pointer(topLevelBucket))
+		setLevelCache = func(b *bucket) {
+			levels[b.level-1] = b //uintptr(unsafe.Pointer(b))
+		}
+	} else {
+		setLevelCache = func(b *bucket) {}
+	}
+
 	for lbCur := topLevelBucket; true; lbCur = lbCur.NextOnLevel() {
 	RETRY:
+		setLevelCache(lbCur)
 		if EnableStats && ignoreBucketEnry {
 			h.mu.Lock()
 			DebugStats[CntLevelBucket]++
@@ -1545,12 +1560,8 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 		if lbCur.reverse > reverseNoMask && lbCur != lbCur.NextOnLevel() {
 			continue
 		}
-		// if lbCur == lbCur.NextOnLevel() {
-		// 	notActive := h.isEmptyBylevel(level)
-		// 	_ = notActive
-		// }
 		var plbCur *bucket //:= lbCur.PrevOnLevel()
-
+		var maxReverse uint64
 		for plbCur = lbCur; plbCur.PrevOnLevel() != plbCur; plbCur = plbCur.PrevOnLevel() {
 			if plbCur.reverse < reverseNoMask {
 				continue
@@ -1581,7 +1592,13 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 			return nil
 		}
 		found = false
-		for bCur = plbCur; bCur.reverse > reverseNoMask; bCur = bCur.nextAsB() {
+		maxReverse = (plbCur.reverse - reverseNoMask)
+		if reverseNoMask-maxReverse > 0 {
+			maxReverse = reverseNoMask - maxReverse
+		} else {
+			maxReverse = reverseNoMask
+		}
+		for bCur = plbCur; bCur.reverse > maxReverse; bCur = bCur.nextAsB() {
 			if EnableStats && ignoreBucketEnry {
 				h.mu.Lock()
 				DebugStats[CntSearchBucket]++
@@ -1594,6 +1611,8 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 				break
 			}
 		}
+		setLevelCache(bCur)
+		setLevelCache(lbCur)
 		if !found {
 			//lbCur = lbCur.prevAsB()
 			if bCur.reverse > reverseNoMask {
@@ -1601,6 +1620,7 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 			} else {
 				lbCur = bCur.prevAsB()
 			}
+			setLevelCache(lbCur)
 			goto EACH_ENTRY
 		}
 
@@ -1611,22 +1631,40 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 
 	EACH_ENTRY:
 
-		return h.searchBybucket(lbCur, reverseNoMask, ignoreBucketEnry)
+		return h.searchBybucket(lbCur, levels, reverseNoMask, ignoreBucketEnry)
 	}
 	return nil
 }
 
-func (h *HMap) searchBybucket(lbCur *bucket, reverseNoMask uint64, ignoreBucketEnry bool) *entryHMap {
+func (h *HMap) searchBybucket(lbCur *bucket, levels [16]*bucket, reverseNoMask uint64, ignoreBucketEnry bool) *entryHMap {
 
-	if lbCur.NextOnLevel().reverse < reverseNoMask {
-		e := lbCur.NextOnLevel().start
-		e2 := &lbCur.NextOnLevel().entry().ListHead
-		_, _ = e, e2
+	lbNext := lbCur.NextOnLevel()
+	if h.modeForBucket == CombineSearch2 {
+		noNil := true
+		for i, b := range levels {
+			if b == nil {
+				noNil = false
+				break
+			}
+			if i+1 == lbNext.level {
+				continue
+			}
+			//b := (*bucket)(unsafe.Pointer(p))
+			if nearUint64(b.reverse, lbNext.reverse, reverseNoMask) == b.reverse {
+				lbNext = b
+			}
+		}
+		if noNil {
+			noNil = false
+		}
+	}
 
-		for cur := lbCur.NextOnLevel().entry(); cur != nil && !cur.Empty(); cur = cur.nextAsE() {
+	if lbNext.reverse < reverseNoMask {
+
+		for cur := lbNext.entry(); cur != nil && !cur.Empty(); cur = cur.nextNoCheck() {
 			if EnableStats && ignoreBucketEnry {
 				h.mu.Lock()
-				DebugStats[CntSearchEntry]++
+				DebugStats[CntReverseSearch]++
 				h.mu.Unlock()
 			}
 			if ignoreBucketEnry && cur.key == nil {
@@ -1643,7 +1681,7 @@ func (h *HMap) searchBybucket(lbCur *bucket, reverseNoMask uint64, ignoreBucketE
 		return nil
 	}
 
-	for cur := lbCur.entry(); cur != nil && !cur.Empty(); cur = cur.prevAsE() {
+	for cur := lbNext.entry(); cur != nil && !cur.Empty(); cur = cur.prevNoCheck() {
 		if EnableStats && ignoreBucketEnry {
 			h.mu.Lock()
 			DebugStats[CntSearchEntry]++
@@ -1675,48 +1713,3 @@ func (h *HMap) ActiveLevels() (result []int) {
 	}
 	return
 }
-
-// func (h *HMap) searchKey(k uint64) *entryHMap {
-
-// 	level := 1
-// 	topLevelBucket := bucketFromLevelHead(h.levelBucket(level).LevelHead.prev.next)
-
-// 	reverseNoMask := bits.Reverse64(k)
-
-// 	lbCur := topLevelBucket
-// 	var nextLevelBucketLhead *ListHead
-// 	var bCur *bucket
-// 	var reverse uint64
-// 	for {
-// 		if EnableStats {
-// 			h.mu.Lock()
-// 			DebugStats[CntOfSearchBcket]++
-// 			h.mu.Unlock()
-// 		}
-// 	RETRY:
-// 		reverse = bits.Reverse64(k & toMask(lbCur.level))
-// 		if reverse == lbCur.reverse {
-// 			level++
-
-// 			if !lbCur.LevelHead.next.Empty() {
-// 				nextLevelBucketLhead = &bucketFromLevelHead(lbCur.LevelHead.next).ListHead
-// 			}
-
-// 			for cur := &lbCur.ListHead; !cur.Empty() && cur != nextLevelBucketLhead; cur = cur.next {
-// 				bCur = bucketFromListHead(cur)
-// 				if bCur.level == level {
-// 					lbCur = bCur
-// 					goto RETRY
-// 				}
-// 			}
-// 		}else if reverse < lbCur.reverse {
-// 			if !lbCur.LevelHead.next.Empty() {
-// 				lbCur := bucketFromListHead(bCur.LevelHead.next)
-// 				goto RETRY
-// 			}
-
-// 		SEARCH:
-
-// 	}
-
-// }
