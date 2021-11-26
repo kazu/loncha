@@ -1610,58 +1610,12 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 		}
 
 	EACH_ENTRY:
-		// if lbCur.entry().reverse < reverseNoMask {
-		// 	_ = "???"
-		// 	return nil
-		// }
-		if lbCur.NextOnLevel().reverse < reverseNoMask {
-			e := lbCur.NextOnLevel().start
-			e2 := &lbCur.NextOnLevel().entry().ListHead
-			_, _ = e, e2
 
-			for cur := lbCur.NextOnLevel().entry(); cur != nil && !cur.Empty(); cur = cur.nextAsE() {
-				if EnableStats && ignoreBucketEnry {
-					h.mu.Lock()
-					DebugStats[CntSearchEntry]++
-					h.mu.Unlock()
-				}
-				if ignoreBucketEnry && cur.key == nil {
-					continue
-				}
-				if cur.reverse < reverseNoMask {
-					continue
-				}
-				if cur.reverse == reverseNoMask {
-					return cur
-				}
-				return nil
-			}
-			return nil
-		}
-
-		for cur := lbCur.entry(); cur != nil && !cur.Empty(); cur = cur.prevAsE() {
-			if EnableStats && ignoreBucketEnry {
-				h.mu.Lock()
-				DebugStats[CntSearchEntry]++
-				h.mu.Unlock()
-			}
-			if ignoreBucketEnry && cur.key == nil {
-				continue
-			}
-			if cur.reverse > reverseNoMask {
-				continue
-			}
-			if cur.reverse == reverseNoMask {
-				return cur
-			}
-
-			return nil
-
-		}
-		return nil
+		return h.searchBybucket(lbCur, reverseNoMask, ignoreBucketEnry)
 	}
 	return nil
 }
+
 func (h *HMap) searchBybucket(lbCur *bucket, reverseNoMask uint64, ignoreBucketEnry bool) *entryHMap {
 
 	if lbCur.NextOnLevel().reverse < reverseNoMask {
