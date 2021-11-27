@@ -39,7 +39,7 @@ func (m *RMap2) getDirtyEntry(k, conflict uint64) (e *entryRmap) {
 		return
 	}
 
-	e, _ = he.value.(*entryRmap)
+	e, _ = he.Value().(*entryRmap)
 	// m.traverseDirty(nil, keySearch2(k), func(dst, node *ListHead) {
 	// 	if dst != nil {
 	// 		e = entryRmapFromListHead(dst)

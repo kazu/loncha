@@ -43,6 +43,8 @@ type HMap struct {
 	modeForBucket SearchMode
 	mu            sync.Mutex
 	levelCache    [16]atomic.Value
+
+	ItemFn func() MapItem
 }
 
 type LevelHead ListHead
@@ -88,48 +90,164 @@ func bucketFromLevelHead(head *ListHead) *bucket {
 }
 
 type entryHMap struct {
-	key      interface{}
-	value    interface{}
-	k        uint64
-	reverse  uint64
-	conflict uint64
-	ListHead
+	key   interface{}
+	value interface{}
+	//k        uint64
+	//reverse  uint64
+	//conflict uint64
+	MapHead
+}
+
+func NewEntryMap(key, value interface{}) *entryHMap {
+	return &entryHMap{
+		key:   key,
+		value: value,
+	}
 }
 
 var (
 	emptyEntryHMap *entryHMap = &entryHMap{}
 	emptyBucket    *bucket    = &bucket{}
+	EmptyEntryHMap *entryHMap = emptyEntryHMap
 )
-
-func (e *entryHMap) Offset() uintptr {
-	return unsafe.Offsetof(e.ListHead)
-}
-
-func (e *entryHMap) PtrListHead() *ListHead {
-	return &e.ListHead
-}
-
-func (e *entryHMap) FromListHead(head *ListHead) List {
-	return entryHMapFromListHead(head)
-}
 
 func entryHMapFromListHead(head *ListHead) *entryHMap {
 	return (*entryHMap)(ElementOf(emptyEntryHMap, head))
 }
 
-type OptHMap func(*HMap)
+func (e *entryHMap) entryHMapromListHead(lhead *ListHead) *entryHMap {
+	return entryHMapFromListHead(lhead)
+}
+
+func (s *entryHMap) HmapEntryFromListHead(lhead *ListHead) HMapEntry {
+	return s.entryHMapromListHead(lhead)
+}
+
+func (s *entryHMap) Key() interface{} {
+	return s.key
+}
+
+func (s *entryHMap) Value() interface{} {
+	return s.value
+}
+
+func (s *entryHMap) SetValue(v interface{}) bool {
+	s.value = v
+	return true
+}
+
+func (s *entryHMap) Next() HMapEntry {
+	return s.entryHMapromListHead(s.next)
+}
+func (s *entryHMap) Prev() HMapEntry {
+	return s.entryHMapromListHead(s.prev)
+}
+
+func (s *entryHMap) PtrMapHead() *MapHead {
+	return &s.MapHead
+}
+func (s *entryHMap) Offset() uintptr {
+	return unsafe.Offsetof(s.ListHead)
+}
+
+// func (e *entryHMap) Offset() uintptr {
+// 	return unsafe.Offsetof(e.ListHead)
+// }
+
+// func (e *entryHMap) PtrListHead() *ListHead {
+// 	return &e.ListHead
+// }
+
+// func (e *entryHMap) FromListHead(head *ListHead) List {
+// 	return entryHMapFromListHead(head)
+// }
+
+type HMapEntry interface {
+	Offset() uintptr
+	PtrMapHead() *MapHead
+	PtrListHead() *ListHead
+	HmapEntryFromListHead(*ListHead) HMapEntry
+	Next() HMapEntry
+	Prev() HMapEntry
+	SetValue(interface{}) bool
+}
+type MapItem interface {
+	Key() interface{}   // require order for HMap
+	Value() interface{} // require order for HMap
+
+	HMapEntry
+}
+
+type MapHead struct {
+	k        uint64
+	conflict uint64
+	isDummy  bool
+	ListHead
+}
+
+var EmptyMapHead MapHead = MapHead{}
+
+func (mh *MapHead) KeyInHmap() uint64 {
+	return mh.k
+}
+
+func (mh *MapHead) ConflictInHamp() uint64 {
+	return mh.conflict
+}
+
+func (mh *MapHead) PtrListHead() *ListHead {
+	return &(mh.ListHead)
+}
+
+func (mh *MapHead) Offset() uintptr {
+	return unsafe.Offsetof(mh.ListHead)
+}
+
+func (mh *MapHead) fromListHead(l *ListHead) *MapHead {
+	return (*MapHead)(ElementOf(&EmptyMapHead, l))
+}
+
+func (c *MapHead) FromListHead(l *ListHead) List {
+	return c.fromListHead(l)
+}
+
+type OptHMap func(*HMap) OptHMap
 
 func MaxPefBucket(max int) OptHMap {
 
-	return func(h *HMap) {
+	return func(h *HMap) OptHMap {
+		prev := h.maxPerBucket
 		h.maxPerBucket = max
+		return MaxPefBucket(prev)
 	}
 }
 
 func BucketMode(mode SearchMode) OptHMap {
-	return func(h *HMap) {
+	return func(h *HMap) OptHMap {
+		prev := h.modeForBucket
 		h.modeForBucket = mode
+		return BucketMode(prev)
 	}
+}
+
+func ItemFn(fn func() MapItem) OptHMap {
+	return func(h *HMap) OptHMap {
+		prev := h.ItemFn
+		h.ItemFn = fn
+		if prev == nil {
+			return nil
+		}
+		return ItemFn(prev)
+	}
+}
+
+func (h *HMap) Options(opts ...OptHMap) (previouses []OptHMap) {
+
+	for _, fn := range opts {
+		previouses = append(previouses, fn(h))
+	}
+	return
+
 }
 
 func NewHMap(opts ...OptHMap) *HMap {
@@ -143,20 +261,19 @@ func NewHMap(opts ...OptHMap) *HMap {
 	hmap.start = list.Prev()
 	hmap.last = list.Next()
 	hmap.modeForBucket = NestedSearchForBucket
+	hmap.ItemFn = func() MapItem { return emptyEntryHMap }
 
-	for _, opt := range opts {
-		opt(hmap)
-	}
+	hmap.Options(opts...)
 	hmap.initLevelCache()
 
 	// hmap := newHMap(opts...)
 	return hmap
 }
 
-func (h *HMap) set(key, value interface{}) bool {
-	k, conflict := KeyToHash(key)
-	return h._set(k, conflict, key, value)
-}
+// func (h *HMap) set(key, value interface{}) bool {
+// 	k, conflict := KeyToHash(key)
+// 	return h._set(k, conflict, key, value)
+// }
 
 func (h *HMap) initBeforeSet() {
 	if !h.notHaveBuckets() {
@@ -172,14 +289,14 @@ func (h *HMap) initBeforeSet() {
 	btable.LevelHead.Init()
 
 	empty := &entryHMap{
-		key:      nil,
-		value:    nil,
-		k:        bits.Reverse64(btable.reverse),
-		reverse:  btable.reverse,
-		conflict: 0,
+		key:   nil,
+		value: nil,
 	}
+	empty.k, empty.conflict = bits.Reverse64(btable.reverse), 0
+	empty.PtrMapHead().isDummy = true
+
 	empty.Init()
-	h.add(h.start.Prev(WaitNoM()).Next(WaitNoM()), empty)
+	h.add2(h.start.Prev(WaitNoM()).Next(WaitNoM()), empty)
 	h.buckets.Prev().Next().insertBefore(&btable.ListHead)
 	btable.start = &empty.ListHead
 
@@ -201,12 +318,12 @@ func (h *HMap) initBeforeSet() {
 	btable.LevelHead.Init()
 
 	empty = &entryHMap{
-		key:      nil,
-		value:    nil,
-		k:        bits.Reverse64(btable.reverse),
-		reverse:  btable.reverse,
-		conflict: 0,
+		key:   nil,
+		value: nil,
 	}
+	empty.k, empty.conflict = bits.Reverse64(btable.reverse), 0
+	empty.PtrMapHead().isDummy = true
+
 	empty.Init()
 	//h.add(h.start.Prev(WaitNoM()).Next(WaitNoM()), empty)
 	//h.add(btablefirst.start, empty)
@@ -226,22 +343,82 @@ func (h *HMap) initBeforeSet() {
 	}
 }
 
+//FIXME: renate _set
+func (h *HMap) _set2(k, conflict uint64, item MapItem) bool {
+	item.PtrMapHead().k = k
+	item.PtrMapHead().conflict = conflict
+
+	h.initBeforeSet()
+
+	var btable *bucket
+	var addOpt HMethodOpt
+	_ = addOpt
+
+	btable = h.searchBucket(k)
+	if btable != nil && btable.start == nil {
+		_ = ""
+	}
+	if btable == nil || btable.start == nil {
+		btable = &bucket{}
+		btable.start = h.start.Prev(WaitNoM()).Next(WaitNoM())
+	} else {
+		addOpt = WithBucket(btable)
+	}
+
+	entry, cnt := h.find2(btable.start, func(item HMapEntry) bool {
+		return bits.Reverse64(k) <= bits.Reverse64(item.PtrMapHead().k)
+	})
+	_ = cnt
+	if entry != nil && entry.PtrMapHead().k == k && entry.PtrMapHead().conflict == conflict {
+		entry.SetValue(item.Value())
+		if btable.level > 0 && cnt > int(btable.len) {
+			btable.len = int64(cnt)
+		}
+		return true
+	}
+	var pEntry HMapEntry
+	var tStart *ListHead
+	if entry != nil {
+		pEntry = entry.Prev()
+		erk := bits.Reverse64(entry.PtrMapHead().k)
+		prk := bits.Reverse64(pEntry.PtrMapHead().k)
+		rk := bits.Reverse64(k)
+		_, _, _ = erk, prk, rk
+
+		if bits.Reverse64(pEntry.PtrMapHead().k) < bits.Reverse64(k) {
+			tStart = pEntry.PtrListHead()
+		} else {
+			_ = ""
+		}
+	}
+	if tStart == nil {
+		tStart = btable.start
+	}
+
+	item.PtrListHead().Init()
+	if addOpt == nil {
+		h.add2(tStart, item)
+	} else {
+		h.add2(tStart, item, addOpt)
+	}
+	atomic.AddInt64(&h.len, 1)
+	if btable.level > 0 {
+		atomic.AddInt64(&btable.len, 1)
+	}
+	return true
+}
+
+//Deprecated: must use _set
 func (h *HMap) _set(k, conflict uint64, key, value interface{}) bool {
 
 	h.initBeforeSet()
 
 	var btable *bucket
 	var addOpt HMethodOpt
-	// for mask := ^uint64(0); mask != 0x0; mask >>= 8 {
-	// 	btable = h.searchBucket(k & mask)
-	// 	if btable != nil {
-	// 		break
-	// 	}
-	// }
+
 	btable = h.searchBucket(k)
 	if btable != nil && btable.start == nil {
 		_ = ""
-
 	}
 	if btable == nil || btable.start == nil {
 		btable = &bucket{}
@@ -265,7 +442,7 @@ func (h *HMap) _set(k, conflict uint64, key, value interface{}) bool {
 	var tStart *ListHead
 
 	if entry != nil {
-		pEntry = entryHMapFromListHead(entry.Prev(WaitNoM()))
+		pEntry = entryHMapFromListHead(entry.Prev().PtrListHead())
 		erk := bits.Reverse64(entry.k)
 		prk := bits.Reverse64(pEntry.k)
 		rk := bits.Reverse64(k)
@@ -283,12 +460,10 @@ func (h *HMap) _set(k, conflict uint64, key, value interface{}) bool {
 	}
 
 	entry = &entryHMap{
-		key:      key,
-		value:    value,
-		k:        k,
-		reverse:  bits.Reverse64(k),
-		conflict: conflict,
+		key:   key,
+		value: value,
 	}
+	entry.k, entry.conflict = k, conflict
 	entry.Init()
 	if addOpt == nil {
 		h.add(tStart, entry)
@@ -308,7 +483,7 @@ func (h *HMap) get(key interface{}) (interface{}, bool) {
 	if e == nil {
 		return e, success
 	}
-	return e.value, success
+	return e.Value(), success
 }
 
 type CondOfFinder func(ehead *entryHMap) bool
@@ -329,7 +504,7 @@ func CondOfFind(reverse uint64, l sync.Locker) CondOfFinder {
 
 var Failreverse uint64 = 0
 
-func (h *HMap) _get(k, conflict uint64) (*entryHMap, bool) {
+func (h *HMap) _get(k, conflict uint64) (MapItem, bool) {
 
 	// if e := h.search(KeyToHash(key)); e != nil {
 	// 	return e.value, true
@@ -365,10 +540,10 @@ func (h *HMap) _get(k, conflict uint64) (*entryHMap, bool) {
 			}
 			return nil, false
 		}
-		if e.k != k || e.conflict != conflict {
+		if e.PtrMapHead().k != k || e.PtrMapHead().conflict != conflict {
 			return nil, false
 		}
-		return e, true
+		return e.(MapItem), true
 
 	case ReversSearchForBucket:
 		bucket = h.searchBucket2(k)
@@ -733,15 +908,26 @@ func (h *HMap) rsearchBucket(k uint64) (result *bucket) {
 	return
 }
 
-func (h *HMap) Set(k string, v *ListHead) bool {
-	return h.set(k, v)
+// func (h *HMap) Set(k string, v *ListHead) bool {
+// 	return h.set(k, v)
+// }
+
+// func (h *HMap) Get(k string) (v *ListHead, t bool) {
+// 	vinf, t := h.get(k)
+
+// 	v, _ = vinf.(*ListHead)
+// 	return v, t
+// }
+
+func (h *HMap) Get(key interface{}) (MapItem, bool) {
+	return h._get(KeyToHash(key))
+
+	//return nil, true
 }
 
-func (h *HMap) Get(k string) (v *ListHead, t bool) {
-	vinf, t := h.get(k)
-
-	v, _ = vinf.(*ListHead)
-	return v, t
+func (h *HMap) Set(item MapItem) bool {
+	k, conflict := KeyToHash(item.Key())
+	return h._set2(k, conflict, item)
 }
 
 func (h *HMap) eachEntry(start *ListHead, fn func(*entryHMap)) {
@@ -765,6 +951,38 @@ func (h *HMap) each(start *ListHead, fn func(key, value interface{})) {
 	return
 }
 
+// must renename to find
+func (h *HMap) find2(start *ListHead, cond func(HMapEntry) bool, opts ...searchArg) (result HMapEntry, cnt int) {
+
+	conf := sharedSearchOpt
+	previous := conf.Options(opts...)
+	defer func() {
+		if previous != nil {
+			conf.Options(previous)
+		}
+	}()
+	cnt = 0
+	var e MapItem
+	if start.Empty() {
+		return
+	}
+	for cur := start; cur != cur.next; cur = cur.DirectNext() {
+		e = entryHMapFromListHead(cur)
+
+		if conf.ignoreBucketEntry && e.Key() == nil {
+			continue
+		}
+		if cond(e) {
+			result = e
+			return
+		}
+		cnt++
+	}
+	return nil, cnt
+
+}
+
+//Deprecated: rewrite to find2
 func (h *HMap) find(start *ListHead, cond func(*entryHMap) bool, opts ...searchArg) (result *entryHMap, cnt int) {
 
 	conf := sharedSearchOpt
@@ -1040,6 +1258,59 @@ func WithBucket(b *bucket) func(*hmapMethod) {
 	}
 }
 
+func (h *HMap) add2(start *ListHead, e HMapEntry, opts ...HMethodOpt) bool {
+	var opt *hmapMethod
+	if len(opts) > 0 {
+		opt = &hmapMethod{}
+		for _, fn := range opts {
+			fn(opt)
+		}
+	}
+
+	cnt := 0
+	pos, _ := h.find2(start, func(ehead HMapEntry) bool {
+		cnt++
+		return bits.Reverse64(e.PtrMapHead().k) < bits.Reverse64(ehead.PtrMapHead().k)
+	}, ignoreBucketEntry(false))
+
+	defer func() {
+		if h.isEmptyBylevel(1) {
+			return
+		}
+
+		if h.SearchKey(e.PtrMapHead().k, ignoreBucketEntry(false)) == nil {
+			sharedSearchOpt.Lock()
+			sharedSearchOpt.e = errors.New("add: item is added. but not found")
+			sharedSearchOpt.Unlock()
+			// fmt.Printf("%s\n", h.DumpBucket())
+			// fmt.Printf("%s\n", h.DumpBucketPerLevel())
+			// fmt.Printf("%s\n", h.DumpEntry())
+			// h.searchKey(e.k, ignoreBucketEntry(false))
+			// fmt.Printf("fail store")
+		}
+	}()
+
+	if pos != nil {
+		pos.PtrListHead().insertBefore(e.PtrListHead())
+		if opt == nil || opt.bucket == nil {
+			return true
+		}
+		btable := opt.bucket
+		if btable != nil && e.(MapItem).Key() != nil && int(btable.len) > h.maxPerBucket {
+			//if cnt > h.maxPerBucket && pos.key != nil {
+			h.MakeBucket(e.PtrListHead(), int(btable.len)/2)
+		}
+		return true
+	}
+	if opt != nil && opt.bucket != nil {
+		//opt.bucket.start.insertBefore(&e.ListHead)
+		nextAsE(opt.bucket.entry(h)).PtrListHead().insertBefore(e.PtrListHead())
+		return true
+	}
+	h.last.insertBefore(e.PtrListHead())
+	return true
+}
+
 func (h *HMap) add(start *ListHead, e *entryHMap, opts ...HMethodOpt) bool {
 	var opt *hmapMethod
 	if len(opts) > 0 {
@@ -1086,7 +1357,7 @@ func (h *HMap) add(start *ListHead, e *entryHMap, opts ...HMethodOpt) bool {
 	}
 	if opt != nil && opt.bucket != nil {
 		//opt.bucket.start.insertBefore(&e.ListHead)
-		opt.bucket.entry().nextAsE().insertBefore(&e.ListHead)
+		nextAsE(opt.bucket.entry(h)).PtrListHead().insertBefore(&e.ListHead)
 		return true
 	}
 	h.last.insertBefore(&e.ListHead)
@@ -1133,9 +1404,15 @@ func (h *HMap) DumpEntry() string {
 	var b strings.Builder
 
 	for cur := h.start.Prev(WaitNoM()).Next(WaitNoM()); !cur.Empty(); cur = cur.Next(WaitNoM()) {
-		e := entryHMapFromListHead(cur)
+		//var e HMapEntry
+		//e = e.HmapEntryFromListHead(cur)
+		mhead := EmptyMapHead.FromListHead(cur).(*MapHead)
+		e := fromMapHead(mhead)
+
+		var ekey interface{}
+		ekey = e.Key()
 		fmt.Fprintf(&b, "entryHMap{key: %+10v, k: 0x%16x, reverse: 0x%16x), conflict: 0x%x, cur: %p, prev: %p, next: %p}\n",
-			e.key, e.k, e.reverse, e.conflict, &e.ListHead, e.prev, e.next)
+			ekey, mhead.k, bits.Reverse64(mhead.k), mhead.conflict, mhead.PtrListHead(), mhead.PtrListHead().prev, mhead.PtrListHead().next)
 	}
 	// a := b.String()
 	// _ = a
@@ -1158,12 +1435,11 @@ func toMask(level int) (mask uint64) {
 func (h *HMap) _insertBefore(tBtable *ListHead, nBtable *bucket) {
 
 	empty := &entryHMap{
-		key:      nil,
-		value:    nil,
-		k:        bits.Reverse64(nBtable.reverse),
-		reverse:  nBtable.reverse,
-		conflict: 0,
+		key:   nil,
+		value: nil,
 	}
+	empty.k, empty.conflict = bits.Reverse64(nBtable.reverse), 0
+	empty.PtrMapHead().isDummy = true
 	empty.Init()
 	var thead *ListHead
 	if tBtable.Empty() {
@@ -1173,7 +1449,7 @@ func (h *HMap) _insertBefore(tBtable *ListHead, nBtable *bucket) {
 		thead = tBucket.start.Prev(WaitNoM()).Next(WaitNoM())
 	}
 	// h.start.Prev(WaitNoM()).Next(WaitNoM())
-	h.add(thead, empty)
+	h.add2(thead, empty)
 	tBtable.insertBefore(&nBtable.ListHead)
 	nBtable.start = &empty.ListHead
 }
@@ -1438,43 +1714,65 @@ func (b *bucket) PrevEntry() *entryHMap {
 
 }
 
-func (b *bucket) entry() *entryHMap {
+// func (b *bucket) entry() *entryHMap {
+// 	if b.start == nil {
+// 		return nil
+// 	}
+// 	start := b.start
+// 	if !start.Empty() {
+// 		return entryHMapFromListHead(start)
+// 	}
+// 	return b.NextEntry()
+// }
+
+func (b *bucket) entry(h *HMap) (e HMapEntry) {
+
 	if b.start == nil {
 		return nil
 	}
 	start := b.start
 	if !start.Empty() {
-		return entryHMapFromListHead(start)
+		return h.ItemFn().HmapEntryFromListHead(start)
 	}
 	return b.NextEntry()
 
 }
-func (e *entryHMap) nextNoCheck() *entryHMap {
-	return entryHMapFromListHead(e.ListHead.next)
+
+func fromMapHead(mhead *MapHead) MapItem {
+
+	if mhead.isDummy {
+		return entryHMapFromListHead(mhead.PtrListHead())
+	}
+	return SampleItemFromListHead(mhead.PtrListHead())
 }
 
-func (e *entryHMap) prevNoCheck() *entryHMap {
-	return entryHMapFromListHead(e.ListHead.prev)
+func nextNoCheck(e HMapEntry) HMapEntry {
+	//return entryHMapFromListHead(e.ListHead.next)
+	return e.Next()
 }
 
-func (e *entryHMap) nextAsE() *entryHMap {
-	start := &e.ListHead
+func prevNoCheck(e HMapEntry) HMapEntry {
+	return e.Prev()
+}
+
+func nextAsE(e HMapEntry) HMapEntry {
+	start := e.PtrListHead()
 	if !start.next.Empty() {
 		start = start.next
 	}
 	if !start.Empty() {
-		return entryHMapFromListHead(start)
+		return e.HmapEntryFromListHead(start)
 	}
 	return nil
 }
 
-func (e *entryHMap) prevAsE() *entryHMap {
-	start := &e.ListHead
+func prevAsE(e HMapEntry) HMapEntry {
+	start := e.PtrListHead()
 	if !start.prev.Empty() {
 		start = start.prev
 	}
 	if !start.Empty() {
-		return entryHMapFromListHead(start)
+		return e.HmapEntryFromListHead(start)
 	}
 	return nil
 }
@@ -1508,7 +1806,7 @@ func (o *searchOpt) Options(opts ...searchArg) (previous searchArg) {
 	}
 	return previous
 }
-func (h *HMap) SearchKey(k uint64, opts ...searchArg) *entryHMap {
+func (h *HMap) SearchKey(k uint64, opts ...searchArg) HMapEntry {
 
 	conf := sharedSearchOpt
 	previous := conf.Options(opts...)
@@ -1521,7 +1819,7 @@ func (h *HMap) SearchKey(k uint64, opts ...searchArg) *entryHMap {
 
 }
 
-func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
+func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) HMapEntry {
 
 	conf := sharedSearchOpt
 
@@ -1636,7 +1934,7 @@ func (h *HMap) searchKey(k uint64, ignoreBucketEnry bool) *entryHMap {
 	return nil
 }
 
-func (h *HMap) searchBybucket(lbCur *bucket, levels [16]*bucket, reverseNoMask uint64, ignoreBucketEnry bool) *entryHMap {
+func (h *HMap) searchBybucket(lbCur *bucket, levels [16]*bucket, reverseNoMask uint64, ignoreBucketEnry bool) HMapEntry {
 
 	lbNext := lbCur.NextOnLevel()
 	if h.modeForBucket == CombineSearch2 {
@@ -1661,19 +1959,20 @@ func (h *HMap) searchBybucket(lbCur *bucket, levels [16]*bucket, reverseNoMask u
 
 	if lbNext.reverse < reverseNoMask {
 
-		for cur := lbNext.entry(); cur != nil && !cur.Empty(); cur = cur.nextNoCheck() {
+		for cur := lbNext.entry(h); cur != nil && !cur.PtrListHead().Empty(); cur = cur.Next() {
 			if EnableStats && ignoreBucketEnry {
 				h.mu.Lock()
 				DebugStats[CntReverseSearch]++
 				h.mu.Unlock()
 			}
-			if ignoreBucketEnry && cur.key == nil {
+			curReverse := bits.Reverse64(cur.PtrMapHead().k)
+			if ignoreBucketEnry && cur.(MapItem).Key() == nil {
 				continue
 			}
-			if cur.reverse < reverseNoMask {
+			if curReverse < reverseNoMask {
 				continue
 			}
-			if cur.reverse == reverseNoMask {
+			if curReverse == reverseNoMask {
 				return cur
 			}
 			return nil
@@ -1681,19 +1980,20 @@ func (h *HMap) searchBybucket(lbCur *bucket, levels [16]*bucket, reverseNoMask u
 		return nil
 	}
 
-	for cur := lbNext.entry(); cur != nil && !cur.Empty(); cur = cur.prevNoCheck() {
+	for cur := lbNext.entry(h); cur != nil && !cur.PtrListHead().Empty(); cur = cur.Prev() {
 		if EnableStats && ignoreBucketEnry {
 			h.mu.Lock()
 			DebugStats[CntSearchEntry]++
 			h.mu.Unlock()
 		}
-		if ignoreBucketEnry && cur.key == nil {
+		curReverse := bits.Reverse64(cur.PtrMapHead().k)
+		if ignoreBucketEnry && cur.(MapItem).Key() == nil {
 			continue
 		}
-		if cur.reverse > reverseNoMask {
+		if curReverse > reverseNoMask {
 			continue
 		}
-		if cur.reverse == reverseNoMask {
+		if curReverse == reverseNoMask {
 			return cur
 		}
 
