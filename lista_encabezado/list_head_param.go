@@ -113,7 +113,7 @@ func (head *ListHead) Append(new *ListHead) (*ListHead, error) {
 	return nlast2.append(new)
 }
 
-func (head *ListHead) InsertBefore(new *ListHead) (*ListHead, error) {
+func (head *ListHead) InsertBefore(new *ListHead, opts ...TravOpt) (*ListHead, error) {
 
 	if new.IsMarked() {
 		if ok, _ := new.IsSafety(); ok {
@@ -144,7 +144,7 @@ func (head *ListHead) InsertBefore(new *ListHead) (*ListHead, error) {
 	// 	return head, ErrNotAppend
 	// }
 	nNode := toNode(new)
-	head.insertBefore(nNode)
+	head.insertBefore(nNode, opts...)
 	return head, nil
 
 }

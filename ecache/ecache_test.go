@@ -622,3 +622,17 @@ func Test_SetFn(t *testing.T) {
 	})
 	assert.Equal(t, 2, cnt)
 }
+
+func Test_syncMap(t *testing.T) {
+
+	a := sync.Map{}
+	a.Store("aaa", 1)
+	z, _ := a.Load("aaa")
+	_ = z
+	z, _ = a.Load("aaa")
+	a.Store("aaa", 2)
+	a.Store("aav", 3)
+	z, _ = a.Load("aav")
+	a.Delete("aaa")
+
+}

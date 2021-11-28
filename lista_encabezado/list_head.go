@@ -263,6 +263,10 @@ func (head *ListHead) PtrNext() **ListHead {
 	return &head.next
 }
 
+func (head *ListHead) DirectPrev() *ListHead {
+	return head.prev
+}
+
 type BoolAndError struct {
 	t bool
 	e error
