@@ -171,23 +171,44 @@ func (mode ModeTraverse) Error() string {
 	return ""
 }
 
-type TravOpt func(*ModeTraverse)
+func (mt *ModeTraverse) Option(opts ...TravOpt) (prevs []TravOpt) {
+
+	var mu sync.Mutex
+	mu.Lock()
+	for _, opt := range opts {
+		prevs = append(prevs, opt(mt))
+	}
+	mu.Unlock()
+	return
+}
+
+type TravOpt func(*ModeTraverse) TravOpt
 
 func Trav(t TraverseType) TravOpt {
 
-	return func(m *ModeTraverse) {
+	return func(m *ModeTraverse) TravOpt {
+		prev := m.t
 		m.t = t
+		return Trav(prev)
 	}
 }
 
 func WaitNoM() TravOpt {
-
 	return Trav(TravWaitNoMark)
 }
 
+func Direct() TravOpt {
+	return Trav(TravDirect)
+}
+
 func Lock(fn func(*ListHead) *sync.RWMutex) TravOpt {
-	return func(m *ModeTraverse) {
+	return func(m *ModeTraverse) TravOpt {
+		prev := m.Mu
 		m.Mu = fn
+		if prev == nil {
+			return nil
+		}
+		return Lock(prev)
 	}
 }
 
@@ -207,45 +228,52 @@ func InitAfterSafety(retry int) func(*ListHead) error {
 
 func (head *ListHead) Prev(opts ...TravOpt) (prev *ListHead) {
 
-	mode := ModeTraverse{t: TravDirect}
+	//mode := ModeTraverse{t: TravDirect}
+	mode := DefaultModeTraverse
 	defer mode.Error()
 	for _, opt := range opts {
-		opt(&mode)
+		//opt(&mode)
+		opt(mode)
+
 	}
 	if !head.Empty() && mode.Mu != nil {
 		mode.Mu(head).RLock()
 		defer mode.Mu(head).RUnlock()
 	}
 
-	err := retry(100, func(retry int) (exit bool, err error) {
+	var err error
+	var exit bool
+	_ = exit
+
+	for retry := 100; retry > 0; retry-- {
 		prev = (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
 
-		defer func() {
-			exit, err = head.rewriteResultOnPrev(mode, prev, exit, err)
-		}()
+		// defer func() {
+		// 	exit, err = head.rewriteResultOnPrev(mode, prev, exit, err)
+		// }()
 
 		if !prev.IsMarked() {
 			exit = true
-			return
+			break
 		}
-
 		switch mode.t {
 		case TravDirect:
 			exit = true
-			return
+			break
 		case TravWaitNoMark:
-			return false, ErrMarked
+			exit, err = false, ErrMarked
+			continue
 		case TravSkipMark:
 			prev = PrevNoM(prev)
 			exit = true
-			return
+			break
 		}
 		// defailt is  TravDirect
 
 		exit = true
 		return
+	}
 
-	})
 	if err != nil {
 		// FIXME: log warning
 		mode.e = err
@@ -336,17 +364,11 @@ func (head *ListHead) rewriteResultOnPrev(mode ModeTraverse, prev *ListHead, oex
 func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 	//MENTION: ignore error. should use NextWithError()
 
-	//return head.next
-
-	//mode := ModeTraverse{t: TravDirect}
 	mode := DefaultModeTraverse
-
-	//return head.next
 
 	defer mode.Error()
 
 	for _, opt := range opts {
-		//opt(&mode)
 		opt(mode)
 	}
 
@@ -354,39 +376,42 @@ func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 		mode.Mu(head).RLock()
 		defer mode.Mu(head).RUnlock()
 	}
-	//return head.next
+	var err error
+	var exit bool
+	_ = exit
 
-	err := retry(100, func(retry int) (exit bool, err error) {
+	for retry := 100; retry > 0; retry-- {
+
 		if head.IsMarked() {
 			_ = "lost current marked"
 		}
-
 		nextElement = head.DirectNext()
 
-		defer func() {
-			exit, err = head.rewriteResultOnNext(*mode, nextElement, exit, err)
-		}()
+		// defer func() {
+		// 	exit, err = head.rewriteResultOnNext(*mode, nextElement, exit, err)
+		// }()
 
 		if !nextElement.IsMarked() {
 			exit = true
-			return
+			break
 		}
 		switch mode.t {
 		case TravDirect:
 			exit = true
-			return
+			break
 		case TravWaitNoMark:
-			return false, ErrNextMarked
+			exit, err = false, ErrNextMarked
+			continue
 		case TravSkipMark:
 			nextElement = PrevNoM(nextElement)
 			exit = true
-			return
+			break
 		}
 		nextElement = head.NextWithError().head
 		exit = true
-		return
+		break
+	}
 
-	})
 	if err != nil {
 		//FIXME: log warning
 		mode.e = err

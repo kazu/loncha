@@ -322,6 +322,173 @@ func TestContainerListAdd(t *testing.T) {
 	assert.Equal(t, hoge.Len(), 2)
 	assert.Equal(t, hoge.Next().Len(), 2)
 }
+func Benchmark_Profile_Next(b *testing.B) {
+	list_head.MODE_CONCURRENT = true
+
+	benckmarks := []struct {
+		name string
+		next func(*list_head.ListHead) *list_head.ListHead
+		prev func(*list_head.ListHead) *list_head.ListHead
+		cnt  int
+	}{
+		// 	name: "Direct",
+		// 	next: func(head *list_head.ListHead) *list_head.ListHead {
+		// 		return head.DirectNext()
+		// 	},
+		// 	prev: func(head *list_head.ListHead) *list_head.ListHead {
+		// 		return head.DirectPrev()
+		// 	},
+		// 	cnt: 10000,
+		// },
+		// {
+		// 	name: "Wait  M",
+		// 	next: func(head *list_head.ListHead) *list_head.ListHead {
+		// 		return head.Next(list_head.WaitNoM())
+		// 	},
+		// 	prev: func(head *list_head.ListHead) *list_head.ListHead {
+		// 		return head.Prev(list_head.WaitNoM())
+		// 	},
+		// 	cnt: 10000,
+		// },
+		// {
+		// 	name: "Normal ",
+		// 	next: func(head *list_head.ListHead) *list_head.ListHead {
+		// 		return head.Next()
+		// 	},
+		// 	prev: func(head *list_head.ListHead) *list_head.ListHead {
+		// 		return head.Prev()
+		// 	},
+		// 	cnt: 10000,
+		// },
+		{
+			name: "TravD  ",
+			next: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Next(list_head.Direct())
+			},
+			prev: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Prev(list_head.Direct())
+			},
+			cnt: 10000,
+		},
+	}
+
+	for _, bm := range benckmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			var head list_head.ListHead
+			head.InitAsEmpty()
+			for i := 0; i < 10; i++ {
+				e := &list_head.ListHead{}
+				e.Init()
+				head.DirectNext().InsertBefore(e)
+			}
+
+			b.ResetTimer()
+			b.StartTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					bm.prev(bm.next(&head))
+				}
+			})
+			b.StopTimer()
+		})
+
+	}
+
+}
+
+func Benchmark_Next(b *testing.B) {
+	list_head.MODE_CONCURRENT = true
+
+	benckmarks := []struct {
+		name   string
+		before func()
+		after  func()
+		next   func(*list_head.ListHead) *list_head.ListHead
+		prev   func(*list_head.ListHead) *list_head.ListHead
+		cnt    int
+	}{
+		{
+			name: "Direct",
+			next: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.DirectNext()
+			},
+			prev: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.DirectPrev()
+			},
+			cnt: 10000,
+		},
+		{
+			name: "Wait  M",
+			next: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Next(list_head.WaitNoM())
+			},
+			prev: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Prev(list_head.WaitNoM())
+			},
+			cnt: 10000,
+		},
+		{
+			name:   "Wait M2",
+			before: func() { list_head.DefaultModeTraverse.Option(list_head.WaitNoM()) },
+			after:  func() { list_head.DefaultModeTraverse.Option(list_head.Direct()) },
+
+			next: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Next()
+			},
+			prev: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Prev()
+			},
+			cnt: 10000,
+		},
+		{
+			name: "Normal ",
+			next: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Next()
+			},
+			prev: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Prev()
+			},
+			cnt: 10000,
+		},
+		{
+			name: "TravD  ",
+			next: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Next(list_head.Direct())
+			},
+			prev: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Prev(list_head.Direct())
+			},
+			cnt: 10000,
+		},
+	}
+
+	for _, bm := range benckmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			var head list_head.ListHead
+			head.InitAsEmpty()
+			for i := 0; i < 10; i++ {
+				e := &list_head.ListHead{}
+				e.Init()
+				head.DirectNext().InsertBefore(e)
+			}
+
+			b.ResetTimer()
+			b.StartTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					bm.prev(bm.next(&head))
+				}
+			})
+			b.StopTimer()
+		})
+
+	}
+
+}
 
 func TestNext(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
