@@ -326,10 +326,12 @@ func Benchmark_Profile_Next(b *testing.B) {
 	list_head.MODE_CONCURRENT = true
 
 	benckmarks := []struct {
-		name string
-		next func(*list_head.ListHead) *list_head.ListHead
-		prev func(*list_head.ListHead) *list_head.ListHead
-		cnt  int
+		name   string
+		before func()
+		after  func()
+		next   func(*list_head.ListHead) *list_head.ListHead
+		prev   func(*list_head.ListHead) *list_head.ListHead
+		cnt    int
 	}{
 		// 	name: "Direct",
 		// 	next: func(head *list_head.ListHead) *list_head.ListHead {
@@ -361,12 +363,14 @@ func Benchmark_Profile_Next(b *testing.B) {
 		// 	cnt: 10000,
 		// },
 		{
-			name: "TravD  ",
+			name:   "TravD  ",
+			before: func() { list_head.DefaultModeTraverse.Option(list_head.Direct()) },
+			after:  func() { list_head.DefaultModeTraverse.Option(list_head.Direct()) },
 			next: func(head *list_head.ListHead) *list_head.ListHead {
-				return head.Next(list_head.Direct())
+				return head.Next()
 			},
 			prev: func(head *list_head.ListHead) *list_head.ListHead {
-				return head.Prev(list_head.Direct())
+				return head.Prev()
 			},
 			cnt: 10000,
 		},
@@ -374,6 +378,9 @@ func Benchmark_Profile_Next(b *testing.B) {
 
 	for _, bm := range benckmarks {
 		b.Run(bm.name, func(b *testing.B) {
+			if bm.before != nil {
+				bm.before()
+			}
 			b.ReportAllocs()
 
 			var head list_head.ListHead
@@ -392,6 +399,9 @@ func Benchmark_Profile_Next(b *testing.B) {
 				}
 			})
 			b.StopTimer()
+			if bm.after != nil {
+				bm.after()
+			}
 		})
 
 	}
@@ -410,7 +420,7 @@ func Benchmark_Next(b *testing.B) {
 		cnt    int
 	}{
 		{
-			name: "Direct",
+			name: "Direct ",
 			next: func(head *list_head.ListHead) *list_head.ListHead {
 				return head.DirectNext()
 			},
@@ -420,12 +430,14 @@ func Benchmark_Next(b *testing.B) {
 			cnt: 10000,
 		},
 		{
-			name: "Wait  M",
+			name:   "Direct2",
+			before: func() { list_head.DefaultModeTraverse.Option(list_head.Direct()) },
+			after:  func() { list_head.DefaultModeTraverse.Option(list_head.Direct()) },
 			next: func(head *list_head.ListHead) *list_head.ListHead {
-				return head.Next(list_head.WaitNoM())
+				return head.Next()
 			},
 			prev: func(head *list_head.ListHead) *list_head.ListHead {
-				return head.Prev(list_head.WaitNoM())
+				return head.Prev()
 			},
 			cnt: 10000,
 		},
@@ -453,6 +465,16 @@ func Benchmark_Next(b *testing.B) {
 			cnt: 10000,
 		},
 		{
+			name: "Wait  M",
+			next: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Next(list_head.WaitNoM())
+			},
+			prev: func(head *list_head.ListHead) *list_head.ListHead {
+				return head.Prev(list_head.WaitNoM())
+			},
+			cnt: 10000,
+		},
+		{
 			name: "TravD  ",
 			next: func(head *list_head.ListHead) *list_head.ListHead {
 				return head.Next(list_head.Direct())
@@ -467,6 +489,9 @@ func Benchmark_Next(b *testing.B) {
 	for _, bm := range benckmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			b.ReportAllocs()
+			if bm.before != nil {
+				bm.before()
+			}
 
 			var head list_head.ListHead
 			head.InitAsEmpty()
@@ -484,6 +509,9 @@ func Benchmark_Next(b *testing.B) {
 				}
 			})
 			b.StopTimer()
+			if bm.before != nil {
+				bm.after()
+			}
 		})
 
 	}

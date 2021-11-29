@@ -226,19 +226,95 @@ func InitAfterSafety(retry int) func(*ListHead) error {
 
 }
 
-func (head *ListHead) Prev(opts ...TravOpt) (prev *ListHead) {
+func prevLoad(head *ListHead) (prev *ListHead) {
+	prev = (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
+	return prev
+}
+
+func prevDirect(head *ListHead) (prev *ListHead) {
+	return head.prev
+}
+
+func prevWaitNoMark(head *ListHead) (prev *ListHead) {
+	var err error
+	prev = head.prev
+	for retry := 100; retry > 0; retry-- {
+		if !prev.IsMarked() {
+			err = nil
+			break
+		}
+		err = ErrMarked
+		prev = prevLoad(head)
+	}
+
+	if err != nil {
+		DefaultModeTraverse.e = err
+		return nil
+	}
+
+	return prev
+}
+
+func prevSkipMark(head *ListHead) (prev *ListHead) {
+	var err error
+	prev = head.prev
+	for retry := 100; retry > 0; retry-- {
+		if !prev.IsMarked() {
+			err = nil
+			break
+		}
+		prev = PrevNoM(prevLoad(head))
+		err = nil
+		break
+	}
+
+	if err != nil {
+		DefaultModeTraverse.e = err
+		return nil
+	}
+
+	return prev
+}
+
+func (head *ListHead) Prev(opts ...TravOpt) *ListHead {
+	//return ListPrev(head, opts...)
+	return ListPrev(head, opts...)
+}
+
+func ListPrev(head *ListHead, opts ...TravOpt) (prev *ListHead) {
+	// if len(opts) == 0 && DefaultModeTraverse.prev != nil {
+	// 	return DefaultModeTraverse.prev(head)
+	// }
+	// return prevDefault(head, opts...)
+
+	if len(opts) > 0 {
+		DefaultModeTraverse.Option(opts...)
+	}
+
+	switch DefaultModeTraverse.t {
+	case TravDirect:
+		return prevDirect(head)
+	case TravWaitNoMark:
+		return prevWaitNoMark(head)
+	case TravSkipMark:
+		return prevSkipMark(head)
+	}
+
+	return prevDefault(head)
+}
+
+func prevDefault(head *ListHead, opts ...TravOpt) (prev *ListHead) {
 
 	//mode := ModeTraverse{t: TravDirect}
 	mode := DefaultModeTraverse
-	defer mode.Error()
-	for _, opt := range opts {
-		//opt(&mode)
-		opt(mode)
 
+	if len(opts) > 0 {
+		mode.Option(opts...)
 	}
-	if !head.Empty() && mode.Mu != nil {
-		mode.Mu(head).RLock()
-		defer mode.Mu(head).RUnlock()
+
+	if DefaultModeTraverse.Mu != nil && !head.Empty() {
+		DefaultModeTraverse.Mu(head).RLock()
+		defer DefaultModeTraverse.Mu(head).RUnlock()
 	}
 
 	var err error
@@ -251,12 +327,16 @@ func (head *ListHead) Prev(opts ...TravOpt) (prev *ListHead) {
 		// defer func() {
 		// 	exit, err = head.rewriteResultOnPrev(mode, prev, exit, err)
 		// }()
+		if DefaultModeTraverse.t == TravDirect {
+			exit = true
+			break
+		}
 
 		if !prev.IsMarked() {
 			exit = true
 			break
 		}
-		switch mode.t {
+		switch DefaultModeTraverse.t {
 		case TravDirect:
 			exit = true
 			break
@@ -276,7 +356,7 @@ func (head *ListHead) Prev(opts ...TravOpt) (prev *ListHead) {
 
 	if err != nil {
 		// FIXME: log warning
-		mode.e = err
+		DefaultModeTraverse.e = err
 	}
 
 	return prev
@@ -361,20 +441,84 @@ func (head *ListHead) rewriteResultOnPrev(mode ModeTraverse, prev *ListHead, oex
 	return oexit, oerr
 }
 
-func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
-	//MENTION: ignore error. should use NextWithError()
+func nextDirect(head *ListHead) (next *ListHead) {
+	return head.next
+}
 
-	mode := DefaultModeTraverse
+func nextLoad(head *ListHead) (next *ListHead) {
+	next = (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next))))
+	return next
+}
 
-	defer mode.Error()
-
-	for _, opt := range opts {
-		opt(mode)
+func nextWaitNoMark(head *ListHead) (next *ListHead) {
+	var err error
+	next = head.next
+	for retry := 100; retry > 0; retry-- {
+		if !next.IsMarked() {
+			err = nil
+			break
+		}
+		err = ErrMarked
+		next = nextLoad(head)
 	}
 
-	if !head.Empty() && mode.Mu != nil {
-		mode.Mu(head).RLock()
-		defer mode.Mu(head).RUnlock()
+	if err != nil {
+		DefaultModeTraverse.e = err
+		return nil
+	}
+
+	return next
+}
+
+func nextSkipMark(head *ListHead) (next *ListHead) {
+	var err error
+	next = head.next
+	for retry := 100; retry > 0; retry-- {
+		if !next.IsMarked() {
+			err = nil
+			break
+		}
+		next = NextNoM(nextLoad(head))
+		err = nil
+		break
+	}
+
+	if err != nil {
+		DefaultModeTraverse.e = err
+		return nil
+	}
+
+	return next
+}
+
+func (head *ListHead) Next(opts ...TravOpt) *ListHead {
+	//return ListPrev(head, opts...)
+	return ListNext(head, opts...)
+}
+
+func ListNext(head *ListHead, opts ...TravOpt) *ListHead {
+	if len(opts) > 0 {
+		DefaultModeTraverse.Option(opts...)
+	}
+
+	switch DefaultModeTraverse.t {
+	case TravDirect:
+		return nextDirect(head)
+	case TravWaitNoMark:
+		return nextWaitNoMark(head)
+	case TravSkipMark:
+		return nextSkipMark(head)
+	}
+
+	return nextDefault(head)
+}
+
+func nextDefault(head *ListHead, opts ...TravOpt) (next *ListHead) {
+	//MENTION: ignore error. should use NextWithError()
+
+	if DefaultModeTraverse.Mu != nil && !head.Empty() {
+		DefaultModeTraverse.Mu(head).RLock()
+		defer DefaultModeTraverse.Mu(head).RUnlock()
 	}
 	var err error
 	var exit bool
@@ -382,20 +526,21 @@ func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 
 	for retry := 100; retry > 0; retry-- {
 
-		if head.IsMarked() {
-			_ = "lost current marked"
-		}
-		nextElement = head.DirectNext()
+		next = head.DirectNext()
 
 		// defer func() {
 		// 	exit, err = head.rewriteResultOnNext(*mode, nextElement, exit, err)
 		// }()
-
-		if !nextElement.IsMarked() {
+		if DefaultModeTraverse.t == TravDirect {
 			exit = true
 			break
 		}
-		switch mode.t {
+
+		if !next.IsMarked() {
+			exit = true
+			break
+		}
+		switch DefaultModeTraverse.t {
 		case TravDirect:
 			exit = true
 			break
@@ -403,18 +548,18 @@ func (head *ListHead) Next(opts ...TravOpt) (nextElement *ListHead) {
 			exit, err = false, ErrNextMarked
 			continue
 		case TravSkipMark:
-			nextElement = PrevNoM(nextElement)
+			next = NextNoM(next)
 			exit = true
 			break
 		}
-		nextElement = head.NextWithError().head
+		next = head.NextWithError().head
 		exit = true
 		break
 	}
 
 	if err != nil {
 		//FIXME: log warning
-		mode.e = err
+		DefaultModeTraverse.e = err
 	}
 	return
 }
