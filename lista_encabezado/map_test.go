@@ -88,11 +88,12 @@ func runBnech(b *testing.B, m list_head.MapGetSet, concurretRoutine, operationCn
 		} else {
 			for pb.Next() {
 				ok := false
+				_ = ok
 				_, ok = m.Get(fmt.Sprintf("%d", index&mask))
-				if !ok {
-					_, ok = m.Get(fmt.Sprintf("%d", index&mask))
-					fmt.Printf("fail")
-				}
+				// if !ok {
+				// 	_, ok = m.Get(fmt.Sprintf("%d", index&mask))
+				// 	fmt.Printf("fail")
+				// }
 				index = index + 1
 			}
 		}
@@ -137,9 +138,9 @@ func Benchmark_Map(b *testing.B) {
 		// {"WithLock           ", 100, 100000, 0, &list_head.MapWithLock{}},
 		// {"Map                ", 100, 100000, 0, &list_head.Map{}},
 		// {"MapString          ", 100, 100000, 0, &list_head.MapString{}},
-		// //{"RMap               ", 100, 100000, 0, list_head.NewRMap()},
-		// {"RMap2              ", 100, 100000, 0, list_head.NewRMap2()},
-		{"sync.Map           ", 100, 1000000, 0, syncMap{}},
+		{"RMap               ", 100, 100000, 0, list_head.NewRMap()},
+		//{"RMap2              ", 100, 100000, 0, list_head.NewRMap2()},
+		{"sync.Map           ", 100, 100000, 0, syncMap{}},
 		// // {"WithLock           ", 100, 100000, 10, &list_head.MapWithLock{}},
 		// // {"Map                ", 100, 100000, 10, &list_head.Map{}},
 		// // {"MapString          ", 100, 100000, 10, &list_head.MapString{}},
