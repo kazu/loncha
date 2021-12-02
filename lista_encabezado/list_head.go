@@ -171,6 +171,18 @@ func (mode ModeTraverse) Error() string {
 	return ""
 }
 
+func NewTraverse() *ModeTraverse {
+	return &ModeTraverse{t: TravDirect}
+}
+
+func (mt *ModeTraverse) SetError(e error) {
+	mt.e = e
+}
+
+func (mt *ModeTraverse) Type() TraverseType {
+	return mt.t
+}
+
 func (mt *ModeTraverse) Option(opts ...TravOpt) (prevs []TravOpt) {
 
 	var mu sync.Mutex
