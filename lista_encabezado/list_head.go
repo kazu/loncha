@@ -98,6 +98,10 @@ type ListHeadWithError struct {
 	err  error
 }
 
+func (head *ListHead) Ptr() unsafe.Pointer {
+	return unsafe.Pointer(head)
+}
+
 func (le ListHeadWithError) Error() string {
 	return le.err.Error()
 }
@@ -145,6 +149,13 @@ func (head *ListHead) InitAsEmpty() {
 
 	end.next = end
 	end.prev = head
+
+}
+
+func InitAsEmpty(head *ListHead, tail *ListHead) {
+
+	head.prev, head.next, tail.prev, tail.next =
+		head, tail, head, tail
 
 }
 
