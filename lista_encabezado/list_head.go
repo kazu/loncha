@@ -311,8 +311,8 @@ func ListPrev(head *ListHead, opts ...TravOpt) (prev *ListHead) {
 	// return prevDefault(head, opts...)
 
 	if len(opts) > 0 {
-		DefaultModeTraverse.Option(opts...)
-		//defer DefaultModeTraverse.Option(prevs...)
+		pOpts := DefaultModeTraverse.Option(opts...)
+		defer DefaultModeTraverse.Option(pOpts...)
 	}
 
 	switch DefaultModeTraverse.t {
@@ -522,8 +522,8 @@ func (head *ListHead) Next(opts ...TravOpt) *ListHead {
 
 func ListNext(head *ListHead, opts ...TravOpt) *ListHead {
 	if len(opts) > 0 {
-		DefaultModeTraverse.Option(opts...)
-		//defer DefaultModeTraverse.Option(prevs...)
+		prevs := DefaultModeTraverse.Option(opts...)
+		defer DefaultModeTraverse.Option(prevs...)
 	}
 
 	switch DefaultModeTraverse.t {
