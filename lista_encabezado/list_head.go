@@ -888,7 +888,7 @@ func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 			AddRecoverState("remove: retry marked prev")
 			return false, ErrDeketeStep1
 		}
-		if !prev1.Empty() {
+		if !prev1.Empty() && mode.Mu != nil {
 			mode.Mu(prev1).Lock()
 			defer mode.Mu(prev1).Unlock()
 		}
