@@ -177,11 +177,11 @@ func (head *ListHead) Add(new *ListHead) *ListHead {
 }
 
 func (head *ListHead) IsSingle() bool {
-
-	if !head.Prev().Empty() {
+	if head.Prev() == nil || !head.Prev().Empty() {
 		return false
 	}
-	if !head.Next().Empty() {
+
+	if head.Next() == nil || !head.Next().Empty() {
 		return false
 	}
 	return true
@@ -217,7 +217,7 @@ func (head *ListHead) add(new *ListHead, opts ...TravOpt) {
 			opt(&mode)
 		}
 		if !new.IsSingle() {
-			fmt.Printf("Warn: insert element must be single node\n")
+			fmt.Printf("Warn:list_head  insert element must be single node\n")
 		}
 		prev := head
 		next := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next))))
@@ -254,7 +254,7 @@ func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) {
 		}
 
 		if !new.IsSingle() {
-			fmt.Printf("Warn: insert element must be single node\n")
+			fmt.Printf("Warn: list_head insert element must be single node\n")
 		}
 
 		next := head
