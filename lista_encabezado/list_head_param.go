@@ -403,6 +403,7 @@ func StoreListHead(dst **ListHead, src *ListHead) {
 		unsafe.Pointer(src))
 }
 
+//go:nocheckptr
 func MarkListHead(target **ListHead, old *ListHead) bool {
 
 	//mask := uintptr(^uint(0)) ^ 1

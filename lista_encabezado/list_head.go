@@ -159,7 +159,7 @@ func InitAsEmpty(head *ListHead, tail *ListHead) {
 
 }
 
-type TraverseType byte
+type TraverseType uint32
 
 const (
 	TravDirect TraverseType = iota
@@ -168,9 +168,10 @@ const (
 )
 
 type ModeTraverse struct {
-	t  TraverseType
-	Mu func(*ListHead) *sync.RWMutex
-	e  error
+	t      TraverseType
+	Mu     func(*ListHead) *sync.RWMutex
+	e      error
+	confMu sync.Mutex
 }
 
 var DefaultModeTraverse *ModeTraverse = &ModeTraverse{t: TravDirect}
@@ -187,11 +188,22 @@ func NewTraverse() *ModeTraverse {
 }
 
 func (mt *ModeTraverse) SetError(e error) {
+	mt.confMu.Lock()
+	defer mt.confMu.Unlock()
 	mt.e = e
 }
 
+//go:nocheckptr
 func (mt *ModeTraverse) Type() TraverseType {
-	return mt.t
+	// mt.confMu.RLock()
+	// defer mt.confMu.RUnlock()
+	return TraverseType(atomic.LoadUint32((*uint32)(&mt.t)))
+
+}
+
+func (mt *ModeTraverse) SetType(t TraverseType) {
+	atomic.StoreUint32((*uint32)(&mt.t), uint32(t))
+	return
 }
 
 func (mt *ModeTraverse) Option(opts ...TravOpt) (prevs []TravOpt) {
@@ -210,8 +222,11 @@ type TravOpt func(*ModeTraverse) TravOpt
 func Trav(t TraverseType) TravOpt {
 
 	return func(m *ModeTraverse) TravOpt {
-		prev := m.t
-		m.t = t
+		m.confMu.Lock()
+		defer m.confMu.Unlock()
+		prev := m.Type()
+		m.SetType(t)
+
 		return Trav(prev)
 	}
 }
@@ -315,7 +330,7 @@ func ListPrev(head *ListHead, opts ...TravOpt) (prev *ListHead) {
 		defer DefaultModeTraverse.Option(pOpts...)
 	}
 
-	switch DefaultModeTraverse.t {
+	switch DefaultModeTraverse.Type() {
 	case TravDirect:
 		return prevDirect(head)
 	case TravWaitNoMark:
@@ -526,7 +541,7 @@ func ListNext(head *ListHead, opts ...TravOpt) *ListHead {
 		defer DefaultModeTraverse.Option(prevs...)
 	}
 
-	switch DefaultModeTraverse.t {
+	switch DefaultModeTraverse.Type() {
 	case TravDirect:
 		return nextDirect(head)
 	case TravWaitNoMark:
@@ -832,6 +847,14 @@ ROLLBACK:
 
 }
 
+//go:nocheckptr
+func (l *ListHead) WithOutMark() *ListHead {
+	const mask = uintptr(^uint(0)) ^ 1
+
+	return (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l)) & mask))
+
+}
+
 func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 
 	mode := ModeTraverse{t: TravDirect}
@@ -846,8 +869,6 @@ func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 	mu4Add.Lock()
 	defer mu4Add.Unlock()
 
-	mask := uintptr(^uint(0)) ^ 1
-
 	var (
 		ErrDeketeStep0 error = errors.New("fail step 0")
 		ErrDeketeStep1 error = errors.New("fail step 1")
@@ -857,8 +878,10 @@ func (l *ListHead) MarkForDelete(opts ...TravOpt) (err error) {
 	_, _ = ErrDeketeStep2, ErrDeketeStep3
 
 	err = retry(100, func(retry int) (fin bool, err error) {
-		prev1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.prev)) & mask))
-		next1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.next)) & mask))
+		prev1 := l.prev.WithOutMark()
+		next1 := l.next.WithOutMark()
+		//prev1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.prev)) & mask))
+		//next1 := (*ListHead)(unsafe.Pointer(uintptr(unsafe.Pointer(l.next)) & mask))
 		if mode.Mu != nil {
 			if !prev1.Empty() {
 				mode.Mu(prev1).Lock()
@@ -1653,6 +1676,7 @@ func Retry(cnt int, fn func(retry int) (done bool, err error)) error {
 	return retry(cnt, fn)
 }
 
+//go:nocheckptr
 func retry(cnt int, fn func(retry int) (done bool, err error)) error {
 
 	stats := map[error]int{}
@@ -1668,6 +1692,7 @@ func retry(cnt int, fn func(retry int) (done bool, err error)) error {
 	return NewError(ErrTOverRetyry, fmt.Errorf("reach retry limit err=%+v", stats))
 }
 
+//go:nocheckptr
 func PrevNoM(oprev *ListHead) *ListHead {
 
 	prev := uintptr(unsafe.Pointer(oprev))
@@ -1680,6 +1705,7 @@ func PrevNoM(oprev *ListHead) *ListHead {
 
 }
 
+//go:nocheckptr
 func NextNoM(ocur *ListHead) *ListHead {
 
 	cur := uintptr(unsafe.Pointer(ocur))
