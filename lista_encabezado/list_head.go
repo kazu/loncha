@@ -270,7 +270,7 @@ func prevLoad(head *ListHead) (prev *ListHead) {
 }
 
 func prevDirect(head *ListHead) (prev *ListHead) {
-	return head.prev
+	return prevLoad(head)
 }
 
 func prevWaitNoMark(head *ListHead) (prev *ListHead) {
@@ -481,7 +481,7 @@ func (head *ListHead) rewriteResultOnPrev(mode ModeTraverse, prev *ListHead, oex
 }
 
 func nextDirect(head *ListHead) (next *ListHead) {
-	return head.next
+	return nextLoad(head)
 }
 
 func nextLoad(head *ListHead) (next *ListHead) {
