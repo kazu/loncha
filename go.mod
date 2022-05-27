@@ -31,7 +31,7 @@ require (
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/sys v0.0.0-20210910150752-751e447fb3d0 // indirect
 	golang.org/x/tools v0.1.8-0.20211005032335-81efdbcac473 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.0 // indirect
 )
 
 //replace github.com/kazu/loncha => ./
