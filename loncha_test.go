@@ -276,6 +276,15 @@ func TestReverse(t *testing.T) {
 	assert.Equal(t, []int{6, 4, 6, 2, 4, 1}, slice)
 }
 
+func TestIntersect(t *testing.T) {
+	slice1 := []int{1, 4, 2, 6, 4, 6}
+	slice2 := []int{2, 5, 9, 6, 4, 2}
+
+	result := Intersect(slice1, slice2)
+
+	assert.Equal(t, []int{2, 6, 4}, result)
+}
+
 // BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
 // BenchmarkFilter/loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkFilter/hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op

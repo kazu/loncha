@@ -1,6 +1,6 @@
 module github.com/kazu/loncha
 
-go 1.17
+go 1.18
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.7.0
@@ -15,7 +15,7 @@ require (
 	github.com/seehuhn/mt19937 v0.0.0-20180715112136-cc7708819361
 	github.com/stretchr/testify v1.7.0
 	github.com/thoas/go-funk v0.7.0
-	go.uber.org/zap v1.16.0
+	go.uber.org/zap v1.21.0
 )
 
 require (
