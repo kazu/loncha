@@ -28,9 +28,20 @@ slice utility dosent use reflect/interface operation.
 
     var objs []GameObject
 
+```
+
+find object from slice
+
+```go
+
     loncha.Find(&objs, func(i int) bool {
         return objs[i].ID == 6
     } 
+```
+
+filter/delete object via condition function
+
+```go
 
     loncha.Filter(&objs, func(i int) bool {
         return objs[i].ID == 12
@@ -39,16 +50,31 @@ slice utility dosent use reflect/interface operation.
 	loncha.Delete(&objs, func(i int) bool {
 		return objs[i].ID == 555
 	})
+```
+
+select object with condition function
+
+```go
 
     // find one object with conditions.
     obj, err := Select(&objs, func(i int) bool {
 		return slice[i].ID < 50
 	})
+```
 
+shuffle slice 
+
+```go
     err = loncha.Shuffle(objs, 2)
 
     loncha.Reverse(objs)
+```
 
+
+got intersection from two slices
+
+
+```go
     var obj2 []GameObject
     intersectedObj := InsertSect(obj, obj2)
 
@@ -63,16 +89,29 @@ slice utility dosent use reflect/interface operation.
     intersect2 := IntersectSorted(obj, obj2, func(s []GameObject, i int) int {
         return s[i].ID
     })
+```
 
+subtraction from two slices
+```go
     subtractObj := Sub(obj, obj2)
 
     subtract2 := SubSorted(obj, obj2, func(s []GameObject, i int) int {
         return s[i].ID
     })
 
-
-
 ```
+
+Returns an object formed from operands via function
+
+
+```go
+	slice1 := []int{10, 6, 4, 2}
+
+	sum := Inject(slice1, func(sum *int, t int) int {
+		return *sum + t
+	})
+```
+
 
 ## generate double-linked list of linux kernel list_head type
 

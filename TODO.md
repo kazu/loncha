@@ -17,7 +17,7 @@
     slice からslice を変換
 - [x] loncha.Intersect/IntersectSorted
 - [x] loncha.Substract
-- [ ] loncha.Inject(Reduce)
+- [x] loncha.Inject(Reduce)
 - [ ] loncha.Parallel 
 - [X] sql like function(gen を使う)
 ## loncha.countaer_list

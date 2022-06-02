@@ -322,6 +322,16 @@ func TestSubSorted(t *testing.T) {
 	assert.Equal(t, []int{4, 10}, result)
 }
 
+func TestInjewct(t *testing.T) {
+	slice1 := []int{10, 6, 4, 2}
+
+	sum := Inject(slice1, func(sum *int, t int) int {
+		return *sum + t
+	})
+
+	assert.Equal(t, 22, sum)
+}
+
 // BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
 // BenchmarkFilter/loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkFilter/hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op

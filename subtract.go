@@ -30,7 +30,7 @@ func Sub[T comparable](slice1, slice2 []T, opts ...Opt) (result []T) {
 }
 
 // SubSorted ... subtraction in sorted slice
-func SubSorted[T any, V Ordered](slice1, slice2 []T, IdentFn KeyFunc[T, V]) (result []T) {
+func SubSorted[T any, V Ordered](slice1, slice2 []T, IdentFn IdentFunc[T, V]) (result []T) {
 
 	jn := 0
 	result = make([]T, 0, len(slice2))

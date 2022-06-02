@@ -41,10 +41,10 @@ type Ordered interface {
 		~string
 }
 
-type KeyFunc[T any, V Ordered] func(slice []T, i int) V
+type IdentFunc[T any, V Ordered] func(slice []T, i int) V
 
 // IntersectSorted ... intersection between 2 sorted slice
-func IntersectSorted[T any, V Ordered](slice1, slice2 []T, IdentFn KeyFunc[T, V]) (result []T) {
+func IntersectSorted[T any, V Ordered](slice1, slice2 []T, IdentFn IdentFunc[T, V]) (result []T) {
 
 	jn := 0
 	for i, v := range slice1 {
