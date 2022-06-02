@@ -37,10 +37,11 @@ type KeyFunc[T any, V comparable] func(slice []T, i int) V
 func IntersectSorted[T any, V comparable](slice1, slice2 []T, fn KeyFunc[T, V]) (result []T) {
 
 	for i, v := range slice1 {
+		key := fn(slice1, i)
 		idx := sort.Search(len(slice2), func(j int) bool {
-			return fn(slice2, i) == fn(slice1, i)
+			return fn(slice2, j) == key
 		})
-		if idx < len(slice2) && fn(slice2, idx) == fn(slice1, idx) {
+		if idx < len(slice2) && fn(slice2, idx) == key {
 			result = append(result, v)
 		}
 	}
