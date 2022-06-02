@@ -285,6 +285,43 @@ func TestIntersect(t *testing.T) {
 	assert.Equal(t, []int{2, 6, 4}, result)
 }
 
+func TestIntersectSSorted(t *testing.T) {
+	slice1 := []int{6, 4, 2, 1}
+	slice2 := []int{9, 6, 5, 3, 2}
+	Reverse(slice1)
+	Reverse(slice2)
+
+	result := IntersectSorted(slice1, slice2, func(s []int, i int) int {
+		return s[i]
+	})
+
+	assert.Equal(t, []int{2, 6}, result)
+}
+
+func TestSub(t *testing.T) {
+	slice1 := []int{6, 4, 2, 1}
+	slice2 := []int{9, 6, 5, 3, 2}
+	Reverse(slice1)
+	Reverse(slice2)
+
+	result := Sub(slice1, slice2)
+
+	assert.Equal(t, []int{1, 4}, result)
+}
+
+func TestSubSorted(t *testing.T) {
+	slice1 := []int{10, 6, 4, 2}
+	slice2 := []int{9, 6, 5, 3, 2, 1}
+	Reverse(slice1)
+	Reverse(slice2)
+
+	result := SubSorted(slice1, slice2, func(s []int, i int) int {
+		return s[i]
+	})
+
+	assert.Equal(t, []int{4, 10}, result)
+}
+
 // BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
 // BenchmarkFilter/loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkFilter/hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op

@@ -15,7 +15,7 @@ A high-performance slice Utilities for Go.
 
 slice utility dosent use reflect/interface operation.
 
-```
+```go
     import "github.com/kazu/loncha"
 
     type GameObject struct {
@@ -48,6 +48,28 @@ slice utility dosent use reflect/interface operation.
     err = loncha.Shuffle(objs, 2)
 
     loncha.Reverse(objs)
+
+    var obj2 []GameObject
+    intersectedObj := InsertSect(obj, obj2)
+
+
+    sort.Slice(objs, func(i int) bool {
+        return objs[i].ID >=  objs[j].ID 
+    })
+    sort.Slice(objs2, func(i int) bool {
+        return objs[i].ID >=  objs[j].ID 
+    })
+
+    intersect2 := IntersectSorted(obj, obj2, func(s []GameObject, i int) int {
+        return s[i].ID
+    })
+
+    subtractObj := Sub(obj, obj2)
+
+    subtract2 := SubSorted(obj, obj2, func(s []GameObject, i int) int {
+        return s[i].ID
+    })
+
 
 
 ```

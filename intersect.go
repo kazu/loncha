@@ -5,6 +5,7 @@ package loncha
 
 import "sort"
 
+// Intersect ... intersection between 2 slice.
 func Intersect[T comparable](slice1, slice2 []T, opts ...Opt) (result []T) {
 
 	param, fn := MergeOpts(opts...)
@@ -32,17 +33,28 @@ func Intersect[T comparable](slice1, slice2 []T, opts ...Opt) (result []T) {
 	return
 }
 
-type KeyFunc[T any, V comparable] func(slice []T, i int) V
+// Ordered ... copy from https://github.com/golang/go/blob/go1.18.3/test/typeparam/ordered.go
+type Ordered interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64 |
+		~string
+}
 
-func IntersectSorted[T any, V comparable](slice1, slice2 []T, fn KeyFunc[T, V]) (result []T) {
+type KeyFunc[T any, V Ordered] func(slice []T, i int) V
 
+// IntersectSorted ... intersection between 2 sorted slice
+func IntersectSorted[T any, V Ordered](slice1, slice2 []T, IdentFn KeyFunc[T, V]) (result []T) {
+
+	jn := 0
 	for i, v := range slice1 {
-		key := fn(slice1, i)
-		idx := sort.Search(len(slice2), func(j int) bool {
-			return fn(slice2, j) == key
+		key := IdentFn(slice1, i)
+		idx := sort.Search(len(slice2)-jn, func(j int) bool {
+			return IdentFn(slice2, j+jn) >= key
 		})
-		if idx < len(slice2) && fn(slice2, idx) == key {
+		if idx < len(slice2) && IdentFn(slice2, idx) == key {
 			result = append(result, v)
+			jn = idx
 		}
 	}
 	return result
