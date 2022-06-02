@@ -59,3 +59,21 @@ func IntersectSorted[T any, V Ordered](slice1, slice2 []T, IdentFn IdentFunc[T, 
 	}
 	return result
 }
+
+type IdentFunc2[V Ordered] func(i int) V
+
+func IntersectSorted2[T any, V Ordered](slice1, slice2 []T, IdentFn1 IdentFunc2[V], IdentFn2 IdentFunc2[V]) (result []T) {
+
+	jn := 0
+	for i, v := range slice1 {
+		key := IdentFn1(i)
+		idx := sort.Search(len(slice2)-jn, func(j int) bool {
+			return IdentFn2(j+jn) >= key
+		})
+		if idx < len(slice2) && IdentFn2(idx) == key {
+			result = append(result, v)
+			jn = idx
+		}
+	}
+	return result
+}

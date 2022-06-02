@@ -322,11 +322,21 @@ func TestSubSorted(t *testing.T) {
 	assert.Equal(t, []int{4, 10}, result)
 }
 
-func TestInjewct(t *testing.T) {
+func TestInject(t *testing.T) {
 	slice1 := []int{10, 6, 4, 2}
 
 	sum := Inject(slice1, func(sum *int, t int) int {
 		return *sum + t
+	})
+
+	assert.Equal(t, 22, sum)
+}
+
+func TestInject2(t *testing.T) {
+	slice1 := []int{10, 6, 4, 2}
+
+	sum := Inject2(slice1, func(sum *int, i int) int {
+		return *sum + slice1[i]
 	})
 
 	assert.Equal(t, 22, sum)
@@ -682,4 +692,95 @@ func BenchmarkSort(b *testing.B) {
 			sort.Slice(data, func(i, j int) bool { return data[i].ID < data[j].ID })
 		}
 	})
+}
+
+func makieIns(n int) (r []int) {
+
+	for i := 0; i < n; i++ {
+		r = append(r, i)
+	}
+	return
+}
+
+func BenchmarkInject(b *testing.B) {
+
+	b.ResetTimer()
+	b.Run("loncha.Inject", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			slice1 := makieIns(1000)
+			b.StartTimer()
+			sum := Inject(slice1, func(sum *int, t int) int {
+				return *sum + t
+			})
+			_ = sum
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("loncha.Inject2", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			slice1 := makieIns(1000)
+			b.StartTimer()
+			sum := Inject2(slice1, func(sum *int, i int) int {
+				return *sum + slice1[i]
+			})
+			_ = sum
+		}
+	})
+
+	b.Run("loncha.Inject3", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			slice1 := makieIns(1000)
+			b.StartTimer()
+			sum := Inject3[int, int](slice1, func(isum any, i int) any {
+				sum := isum.(*int)
+				return *sum + slice1[i]
+			})
+			_ = sum
+		}
+	})
+
+}
+
+func BenchmarkIntersectSorted(b *testing.B) {
+
+	b.ResetTimer()
+	b.Run("loncha.IntersectSorted", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			slice1 := []int{6, 4, 2, 1}
+			slice2 := []int{9, 6, 5, 3, 2}
+			Reverse(slice1)
+			Reverse(slice2)
+			b.StartTimer()
+			IntersectSorted(slice1, slice2, func(s []int, i int) int {
+				return s[i]
+			})
+
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("loncha.IntersectSorted2", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			slice1 := []int{6, 4, 2, 1}
+			slice2 := []int{9, 6, 5, 3, 2}
+			Reverse(slice1)
+			Reverse(slice2)
+			b.StartTimer()
+			IntersectSorted2(slice1, slice2,
+				func(i int) int {
+					return slice1[i]
+				},
+				func(i int) int {
+					return slice2[i]
+				},
+			)
+		}
+	})
+
 }
