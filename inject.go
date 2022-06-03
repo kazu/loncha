@@ -7,7 +7,7 @@ type InjectFn[T any, R any] func(R, T) R
 func Inject[T any, V any](s []T, injectFn InjectFn[T, V]) (v V) {
 
 	for _, t := range s {
-		return injectFn(v, t)
+		v = injectFn(v, t)
 	}
 	return
 }
