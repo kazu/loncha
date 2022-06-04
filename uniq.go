@@ -29,7 +29,7 @@ func Uniq(slice interface{}, fn IdentFn) error {
 
 	exists := make(map[interface{}]bool, n)
 
-	err = Filter(slice, func(i int) bool {
+	err = OldFilter(slice, func(i int) bool {
 		if !exists[fn(i)] {
 			exists[fn(i)] = true
 			return true

@@ -5,8 +5,12 @@ package loncha
 
 import "sort"
 
+type IntersectOpt struct {
+	Uniq bool
+}
+
 // Intersect ... intersection between 2 slice.
-func Intersect[T comparable](slice1, slice2 []T, opts ...Opt) (result []T) {
+func Intersect[T comparable](slice1, slice2 []T, opts ...Opt[IntersectOpt]) (result []T) {
 
 	param, fn := MergeOpts(opts...)
 	defer fn(param)
@@ -21,7 +25,7 @@ func Intersect[T comparable](slice1, slice2 []T, opts ...Opt) (result []T) {
 	result = make([]T, 0, len(exists))
 
 	for _, v := range slice2 {
-		if param.Uniq && already[v] {
+		if param.Param.Uniq && already[v] {
 			continue
 		}
 

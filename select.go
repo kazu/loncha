@@ -72,8 +72,9 @@ func Select(slice interface{}, fn CondFunc) (interface{}, error) {
 	return ptr.Elem().Interface(), nil
 }
 
-// Filter ... Filter element with mached funcs
-func Filter(slice interface{}, funcs ...CondFunc) error {
+// OldFilter ... OldFilter element with mached funcs
+// Deprecated:  should use FIlter
+func OldFilter(slice interface{}, funcs ...CondFunc) error {
 
 	rv, err := slice2Reflect(slice)
 	if err != nil {

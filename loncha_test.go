@@ -85,7 +85,7 @@ func (slice Elements) Where(q Eq) Elements {
 		}
 	}
 	oslice := &slice
-	Filter(oslice, funcs...)
+	OldFilter(oslice, funcs...)
 	return *oslice
 }
 
@@ -159,13 +159,54 @@ func TestLastIndexOf(t *testing.T) {
 func TestFilter(t *testing.T) {
 	nSlice := Elements(MakeSliceSample())
 	id := nSlice[50].ID
-	Filter(&nSlice, func(i int) bool {
+	OldFilter(&nSlice, func(i int) bool {
 		return nSlice[i].ID == id
 	})
 
 	assert.True(t, nSlice[0].ID == id, nSlice)
 	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+}
+
+func TestFilter2(t *testing.T) {
+	nSlice := Elements(MakeSliceSample())
+	id := nSlice[50].ID
+	var err error
+	nSlice, err = Filter(nSlice, nil,
+		Cond2[FilterOpt[Element]](func(obj *Element) bool {
+			return obj.ID == id
+		}))
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID == id, nSlice)
+	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
+	nSlice = Elements(MakeSliceSample())
+	id = nSlice[50].ID
+	nSlice, err = Filter(nSlice, nil,
+		FilterVersion[FilterOpt[Element]](4),
+		Cond2[FilterOpt[Element]](func(obj *Element) bool {
+			return obj.ID == id || obj.ID == id+100
+		}))
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID == id, nSlice)
+	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
+	nSlice = Elements(MakeSliceSample())
+	id = nSlice[50].ID
+	nSlice, err = Filter(nSlice,
+		func(obj *Element) bool {
+			return obj.ID == id || obj.ID == id+100
+		})
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID == id, nSlice)
+	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
 }
 
 func TestDelete(t *testing.T) {
@@ -278,7 +319,7 @@ func TestReverse(t *testing.T) {
 
 func TestIntersect(t *testing.T) {
 	slice1 := []int{1, 4, 2, 6, 4, 6}
-	slice2 := []int{2, 5, 9, 6, 4, 2}
+	slice2 := []int{2, 5, 9, 6, 4}
 
 	result := Intersect(slice1, slice2)
 
@@ -347,15 +388,72 @@ func BenchmarkFilter(b *testing.B) {
 	orig := MakeSliceSample()
 
 	b.ResetTimer()
-	b.Run("loncha.Filter", func(b *testing.B) {
+	b.Run("loncha.Filter ", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			objs := make([]Element, len(orig))
 			copy(objs, orig)
 			b.StartTimer()
-			Filter(&objs, func(i int) bool {
+			OldFilter(&objs, func(i int) bool {
 				return objs[i].ID == 555
 			})
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("loncha.oFilter2", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			Filter(objs,
+				nil,
+				Cond[FilterOpt[Element]](func(i int) bool {
+					return objs[i].ID == 555
+				}))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("loncha.Filter2 ", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			objs, _ = Filter(objs, nil,
+				Cond2[FilterOpt[Element]](func(obj *Element) bool {
+					return obj.ID == 555
+				}))
+		}
+	})
+	b.ResetTimer()
+	b.Run("loncha.Filter2.3 ", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			objs, _ = Filter(objs, nil,
+				FilterVersion[FilterOpt[Element]](3),
+				Cond2[FilterOpt[Element]](func(obj *Element) bool {
+					return obj.ID == 555
+				}))
+		}
+	})
+	b.ResetTimer()
+	b.Run("loncha.Filter2.4 ", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			objs, _ = Filter(objs, nil,
+				FilterVersion[FilterOpt[Element]](4),
+				Cond2[FilterOpt[Element]](func(obj *Element) bool {
+					return obj.ID == 555
+				}))
 		}
 	})
 
@@ -367,7 +465,7 @@ func BenchmarkFilter(b *testing.B) {
 			objs := make([]*Element, 0, len(pObjs))
 			copy(objs, pObjs)
 			b.StartTimer()
-			Filter(&objs, func(i int) bool {
+			OldFilter(&objs, func(i int) bool {
 				return objs[i].ID == 555
 			})
 		}
@@ -551,7 +649,7 @@ func BenchmarkSelect(b *testing.B) {
 			objs := make([]Element, len(orig))
 			copy(objs, orig)
 			b.StartTimer()
-			Filter(&objs, func(i int) bool {
+			OldFilter(&objs, func(i int) bool {
 				return objs[i].ID == 555
 			})
 			newObjs := make([]Element, len(orig))

@@ -2,6 +2,9 @@ package loncha
 
 import "sort"
 
+type subOpt struct {
+}
+
 func mapOfExists[T comparable](slice []T) (exists map[T]bool) {
 
 	exists = map[T]bool{}
@@ -13,7 +16,7 @@ func mapOfExists[T comparable](slice []T) (exists map[T]bool) {
 }
 
 // Sub .. subtraction between two slices.
-func Sub[T comparable](slice1, slice2 []T, opts ...Opt) (result []T) {
+func Sub[T comparable](slice1, slice2 []T, opts ...Opt[subOpt]) (result []T) {
 
 	param, fn := MergeOpts(opts...)
 	defer fn(param)

@@ -43,8 +43,8 @@ filter/delete object via condition function
 
 ```go
 
-    loncha.Filter(&objs, func(i int) bool {
-        return objs[i].ID == 12
+    loncha.Filter(&objs, func(obj *GameObject) bool {
+        return obj.ID == 12
     } 
 
 	loncha.Delete(&objs, func(i int) bool {
