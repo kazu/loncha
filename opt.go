@@ -1,16 +1,12 @@
 package loncha
 
-type fnParam struct {
-	CompareFn  CompareFunc
-	CondFn     CompareFunc
-	IsSort     bool
-	SortBefore bool
-	Uniq       bool
+type opParam[T any] struct {
+	Param T
 }
 
-type Opt func(*fnParam) Opt
+type Opt[T any] func(*opParam[T]) Opt[T]
 
-func (p *fnParam) Options(opts ...Opt) (prevs []Opt) {
+func (p *opParam[T]) Options(opts ...Opt[T]) (prevs []Opt[T]) {
 
 	for _, opt := range opts {
 		prevs = append(prevs, opt(p))
@@ -18,17 +14,16 @@ func (p *fnParam) Options(opts ...Opt) (prevs []Opt) {
 	return
 }
 
-func DefauiltOpt() *fnParam {
-	return &fnParam{Uniq: true}
+func DefauiltOpt[T any]() *opParam[T] {
+	return &opParam[T]{}
 }
 
-func MergeOpts(opts ...Opt) (*fnParam, func(*fnParam)) {
+func MergeOpts[T any](opts ...Opt[T]) (*opParam[T], func(p *opParam[T])) {
 
-	param := DefauiltOpt()
+	param := DefauiltOpt[T]()
 	prevs := param.Options(opts...)
 
-	return param, func(p *fnParam) {
+	return param, func(p *opParam[T]) {
 		p.Options(prevs...)
 	}
-
 }
