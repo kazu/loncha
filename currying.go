@@ -54,3 +54,16 @@ func Containable[T comparable](fn CondFunc2[T]) func([]T) bool {
 	}
 
 }
+
+// Convertable ...  generate function of slice conversion.
+func Convertable[S, D any](fn ConvFunc[S, D]) func([]S) []D {
+	return func(srcs []S) (dsts []D) {
+
+		for _, src := range srcs {
+			if d, removed := fn(src); !removed {
+				dsts = append(dsts, d)
+			}
+		}
+		return
+	}
+}
