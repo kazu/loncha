@@ -207,10 +207,28 @@ func TestFilter2(t *testing.T) {
 	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
 
+	nSlice = Elements(MakeSliceSample())
+	id = nSlice[50].ID
+	nSlice = Filterable(
+		func(obj *Element) bool {
+			return obj.ID == id || obj.ID == id+100
+		})(nSlice)
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID == id, nSlice)
+	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
 }
 
 func TestDelete(t *testing.T) {
+
 	nSlice := Elements(MakeSliceSample())
+
+	beforeSlice := make(Elements, len(nSlice))
+	copy(beforeSlice[:len(nSlice)], nSlice)
+	afterSlice := make(Elements, len(nSlice))
+
 	size := len(nSlice)
 	Delete(&nSlice, func(i int) bool {
 		return nSlice[i].ID == 555
@@ -219,6 +237,20 @@ func TestDelete(t *testing.T) {
 	assert.True(t, nSlice[0].ID != 555, nSlice)
 	assert.True(t, len(nSlice) < size, len(nSlice))
 	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
+	afterSlice = afterSlice[:len(nSlice)]
+	copy(afterSlice[:len(nSlice)], nSlice)
+	nSlice = nSlice[:len(beforeSlice)]
+	copy(nSlice[:len(beforeSlice)], beforeSlice)
+
+	size = len(nSlice)
+	deleteCond := func(e *Element) bool {
+		return e.ID == 555
+	}
+	nSlice = Deletable(deleteCond)(nSlice)
+
+	assert.Equal(t, afterSlice, nSlice)
+
 }
 
 func TestUniq(t *testing.T) {
@@ -376,6 +408,16 @@ func TestInjewct(t *testing.T) {
 	})
 
 	assert.Equal(t, 22, *sum)
+
+	sum2 := Injectable(func(sum *int, t int) *int {
+		if sum == nil {
+			sum = new(int)
+			*sum = 0
+		}
+		v := *sum + t
+		return &v
+	})(slice1)
+	assert.Equal(t, *sum, *sum2)
 }
 
 // BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
@@ -454,6 +496,20 @@ func BenchmarkFilter(b *testing.B) {
 				Cond2[FilterOpt[Element]](func(obj *Element) bool {
 					return obj.ID == 555
 				}))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("loncha.Filterable ", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			objs := make([]Element, len(orig))
+			copy(objs, orig)
+			b.StartTimer()
+			objs = Filterable(func(obj *Element) bool {
+				return obj.ID == 555
+			})(objs)
+
 		}
 	})
 
