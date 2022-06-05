@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	list_head "github.com/kazu/loncha/lista_encabezado"
+	list_head "github.com/kazu/lista_encabezado"
 )
 
 type CacheType byte

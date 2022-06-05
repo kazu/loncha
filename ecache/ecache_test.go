@@ -18,9 +18,9 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/coocood/freecache"
 	"github.com/golang/groupcache/lru"
+	list_head "github.com/kazu/lista_encabezado"
 	"github.com/kazu/loncha"
 	"github.com/kazu/loncha/ecache"
-	list_head "github.com/kazu/loncha/lista_encabezado"
 	"github.com/pingcap/go-ycsb/pkg/generator"
 )
 
