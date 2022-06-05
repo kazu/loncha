@@ -1,4 +1,12 @@
 # loncha
+[![Build Status](https://github.com/kazu/loncha/actions/workflows/go.yml/badge.svg)](https://github.com/kazu/loncha/actions/workflows/go.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kazu/loncha)](https://goreportcard.com/report/github.com/kazu/loncha)
+[![codecov](https://codecov.io/gh/kazu/loncha/branch/master/graph/badge.svg)](https://codecov.io/gh/kazu/loncha)
+[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gomods/athens.svg)](https://github.com/kazu/loncha)
+[![GitHub release](https://img.shields.io/github/v/release/kazu/loncha.svg)](https://github.com/kazu/loncha)
+
+
+
 A high-performance slice Utilities for Go.
 * high-perfirmance slice filter/finder.
 * linked-list generics template using [Gennry]
