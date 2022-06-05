@@ -197,10 +197,35 @@ func TestFilter2(t *testing.T) {
 
 	nSlice = Elements(MakeSliceSample())
 	id = nSlice[50].ID
+	expect := nSlice[50]
+	nSlice, err = Filter(nSlice, nil,
+		FilterVersion[FilterOpt[Element]](3),
+		Equal[FilterOpt[Element]](expect))
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID == id, nSlice)
+	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
+	nSlice = Elements(MakeSliceSample())
+	id = nSlice[50].ID
 	nSlice, err = Filter(nSlice,
 		func(obj *Element) bool {
 			return obj.ID == id || obj.ID == id+100
 		})
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID == id, nSlice)
+	assert.True(t, len(nSlice) < CREATE_SLICE_MAX, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
+	nSlice = Elements(MakeSliceSample())
+	id = nSlice[50].ID
+	nSlice, err = Filter(nSlice, nil,
+		FilterVersion[FilterOpt[Element]](3),
+		Cond2[FilterOpt[Element]](func(obj *Element) bool {
+			return obj.ID == id || obj.ID == id+100
+		}))
 
 	assert.NoError(t, err)
 	assert.True(t, nSlice[0].ID == id, nSlice)
@@ -289,6 +314,23 @@ func TestUniq2(t *testing.T) {
 
 }
 
+func TestUniqWithSort(t *testing.T) {
+	nSlice := Elements(MakeSliceSample())
+	nSlice = append(nSlice, Element{ID: nSlice[0].ID})
+	//size := len(nSlice)
+	nSlice2 := make([]Element, len(nSlice))
+	copy(nSlice2, nSlice)
+
+	UniqWithSort(&nSlice, func(i, j int) bool {
+		return nSlice[i].ID < nSlice[j].ID
+	})
+
+	//assert.True(t, len(nSlice) < size, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+	assert.Equal(t, len(nSlice), len(nSlice2))
+
+}
+
 func TestSelect(t *testing.T) {
 	slice := MakeSliceSample()
 
@@ -309,6 +351,22 @@ func TestSelect(t *testing.T) {
 		return slice[i].ID < 50
 	})
 	nSlice, ok = ret.([]Element)
+
+	assert.NoError(t, err)
+	assert.True(t, nSlice[0].ID < 50, nSlice)
+	assert.True(t, ok)
+	assert.True(t, len(nSlice) < 100, len(nSlice))
+	t.Logf("nSlice.len=%d cap=%d\n", len(nSlice), cap(nSlice))
+
+	slice = MakeSliceSample()
+
+	islessID := func(id int) func(e *Element) bool {
+		return func(e *Element) bool {
+			return e.ID < id
+		}
+	}
+
+	nSlice = Selectable(islessID(50))(slice)
 
 	assert.NoError(t, err)
 	assert.True(t, nSlice[0].ID < 50, nSlice)
@@ -396,10 +454,19 @@ func TestSubSorted(t *testing.T) {
 	assert.Equal(t, []int{4, 10}, result)
 }
 
-func TestInjewct(t *testing.T) {
+type V4sum struct {
+	A int
+}
+
+func TestInject(t *testing.T) {
 	slice1 := []int{10, 6, 4, 2}
 
-	sum := Inject(slice1, func(sum *int, t int) *int {
+	sum1 := Inject(slice1, func(sum int, t int) int {
+		return sum + t
+	})
+	assert.Equal(t, 22, sum1)
+
+	sum := Reduce(slice1, func(sum *int, t int) *int {
 		if sum == nil {
 			sum = new(int)
 			*sum = 0
@@ -407,10 +474,13 @@ func TestInjewct(t *testing.T) {
 		v := *sum + t
 		return &v
 	})
-
 	assert.Equal(t, 22, *sum)
 
-	sum2 := Injectable(func(sum *int, t int) *int {
+	sum4 := Sum(slice1)
+
+	assert.Equal(t, 22, sum4)
+
+	sum2 := Reducable(func(sum *int, t int) *int {
 		if sum == nil {
 			sum = new(int)
 			*sum = 0
@@ -419,6 +489,75 @@ func TestInjewct(t *testing.T) {
 		return &v
 	})(slice1)
 	assert.Equal(t, *sum, *sum2)
+
+	slice2 := []V4sum{
+		{1}, {2},
+	}
+
+	sumFns := SumWithFn(slice2, func(a V4sum) int { return a.A })
+	assert.Equal(t, sumFns, 3)
+
+}
+
+func TestConv(t *testing.T) {
+	slice1 := []int{10, 6, 4, 2}
+
+	int64s := Convertable(
+		func(i int) (int64, bool) {
+			return int64(100 + i), false
+		})(slice1)
+
+	assert.Equal(t, slice1[0]+100, int(int64s[0]))
+
+}
+
+func has[T comparable](a T) func(e *T) bool {
+	return func(e *T) bool {
+		return *e == a
+	}
+
+}
+
+func TestContain(t *testing.T) {
+	slice1 := []int{10, 6, 4, 2}
+
+	assert.True(t, Containable(has(6))(slice1))
+	assert.False(t, Containable(has(11))(slice1))
+
+	assert.True(t,
+		Contain(slice1, func(i int) bool { return slice1[i] == 6 }))
+
+}
+
+func Sort[T Ordered](s []T) []T {
+
+	sort.Slice(s, func(i, j int) bool {
+		return s[i] <= s[j]
+	})
+
+	return s
+}
+
+func TestMap(t *testing.T) {
+
+	m := map[int]int{
+		1: 20,
+		4: 30,
+	}
+	assert.Equal(t, []int{1, 4}, Sort(Keys(m)))
+	assert.Nil(t, Keys[int, int](nil))
+	assert.Equal(t, []int{20, 30}, Sort(Values(m)))
+	assert.Nil(t, Values[int, int](nil))
+
+	nM := SelectMap(m, func(k, v int) (int, int, bool) {
+		if k+v == 34 {
+			return k, v, true
+		}
+		return k + 10, v + 100, false
+	})
+
+	assert.Equal(t, 120, nM[11])
+
 }
 
 // BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op

@@ -22,9 +22,8 @@ type SumIdent[T any, V Ordered] func(e T) V
 
 // Sum ... sum of slice values in Ordered type
 func Sum[T Ordered](s []T) (v T) {
-
-	return Inject(s, func(result T, e T) T {
-		return result + e
+	return Inject(s, func(r T, e T) (v T) {
+		return r + e
 	})
 
 }
