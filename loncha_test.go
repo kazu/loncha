@@ -230,8 +230,9 @@ func TestDelete(t *testing.T) {
 	afterSlice := make(Elements, len(nSlice))
 
 	size := len(nSlice)
+	id := nSlice[100].ID
 	Delete(&nSlice, func(i int) bool {
-		return nSlice[i].ID == 555
+		return nSlice[i].ID == id
 	})
 
 	assert.True(t, nSlice[0].ID != 555, nSlice)
@@ -245,7 +246,7 @@ func TestDelete(t *testing.T) {
 
 	size = len(nSlice)
 	deleteCond := func(e *Element) bool {
-		return e.ID == 555
+		return e.ID == id
 	}
 	nSlice = Deletable(deleteCond)(nSlice)
 
