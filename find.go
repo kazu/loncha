@@ -45,7 +45,8 @@ func IndexOf(slice interface{}, fn CondFunc) (int, error) {
 	}
 	return -1, ERR_NOT_FOUND
 }
-// IndexOf gets the index at which the last match fn is true. if not found. return -1.
+
+// LastIndexOf gets the last index at which the last match fn is true. if not found. return -1.
 // return error if slice is not pointer of the slice.
 func LastIndexOf(slice interface{}, fn CondFunc) (int, error) {
 
@@ -58,7 +59,7 @@ func LastIndexOf(slice interface{}, fn CondFunc) (int, error) {
 	if length == 0 {
 		return -1, err
 	}
-	for i := length -1 ; i >= 0; i-- {
+	for i := length - 1; i >= 0; i-- {
 		if fn(i) {
 			return i, nil
 		}

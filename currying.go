@@ -40,3 +40,17 @@ func Injectable[T any, V any](injectFn InjectFn[T, V]) InjecterFunc[T, V] {
 func Reducable[T any, V any](injectFn InjectFn[T, V]) InjecterFunc[T, V] {
 	return Injectable(injectFn)
 }
+
+// Containable ... generate function of slice contain.
+func Containable[T comparable](fn CondFunc2[T]) func([]T) bool {
+
+	return func(srcs []T) bool {
+		for _, src := range srcs {
+			if fn(&src) {
+				return true
+			}
+		}
+		return false
+	}
+
+}
