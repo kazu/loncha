@@ -8,7 +8,7 @@
 
 
 A high-performance slice Utilities for Go.
-* high-perfirmance slice filter/finder.
+* high-performance slice filter/finder.
 * linked-list generics template using [Gennry]
 
 ## Installation
