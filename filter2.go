@@ -130,7 +130,7 @@ func Filter[T comparable](slice []T, condFn CondFunc2[T], opts ...Opt[FilterOpt[
 	return slice, nil
 }
 
-func innerFilter2[T comparable](pslice *[]T, keep bool, funcs ...CondFunc2[T]) {
+func innerFilter2[T any](pslice *[]T, keep bool, funcs ...CondFunc2[T]) {
 
 	length := len(*pslice)
 

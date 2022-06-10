@@ -4,7 +4,7 @@ package loncha
 type FilterFunc[T any] func([]T) []T
 
 // Filterable ... generate filter function for slice
-func Filterable[T comparable](fns ...CondFunc2[T]) FilterFunc[T] {
+func Filterable[T any](fns ...CondFunc2[T]) FilterFunc[T] {
 	return innerfilterlable(true, fns...)
 }
 
@@ -14,11 +14,11 @@ func Deletable[T comparable](fns ...CondFunc2[T]) FilterFunc[T] {
 }
 
 // Selectable ... generate deleting function by fns Condition for slice
-func Selectable[T comparable](fns ...CondFunc2[T]) FilterFunc[T] {
+func Selectable[T any](fns ...CondFunc2[T]) FilterFunc[T] {
 	return Filterable(fns...)
 }
 
-func innerfilterlable[T comparable](keep bool, fns ...CondFunc2[T]) FilterFunc[T] {
+func innerfilterlable[T any](keep bool, fns ...CondFunc2[T]) FilterFunc[T] {
 	return func(srcs []T) (dsts []T) {
 		dsts = srcs
 		innerFilter2(&dsts, keep, fns...)
@@ -58,6 +58,7 @@ func Containable[T comparable](fn CondFunc2[T]) func([]T) bool {
 // Convertable ...  generate function of slice conversion.
 func Convertable[S, D any](fn ConvFunc[S, D]) func([]S) []D {
 	return func(srcs []S) (dsts []D) {
+		dsts = []D{}
 
 		for _, src := range srcs {
 			if d, removed := fn(src); !removed {
