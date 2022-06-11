@@ -560,6 +560,19 @@ func TestMap(t *testing.T) {
 
 }
 
+func TestZipper(t *testing.T) {
+
+	a := []string{"bob", "hoge", "one", "home"}
+	b := []int{0, 1, 2}
+
+	m := Zipper(ToMap[string, int], map[string]int{})(a, b)
+
+	assert.Equal(t, 0, m["bob"])
+	assert.Equal(t, 2, m["one"])
+	assert.Equal(t, 0, m["home"])
+
+}
+
 // BenchmarkFilter/loncha.Filter-16         	     100	     89142 ns/op	   82119 B/op	       4 allocs/op
 // BenchmarkFilter/loncha.Filter_pointer-16 	     100	       201 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkFilter/hand_Filter_pointer-16   	     100	     24432 ns/op	   81921 B/op	       1 allocs/op
