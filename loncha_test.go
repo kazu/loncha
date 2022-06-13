@@ -490,6 +490,19 @@ func TestInject(t *testing.T) {
 	})(slice1)
 	assert.Equal(t, *sum, *sum2)
 
+	d := int(0)
+	_ = d
+
+	sum3 := Reducable(func(sum *int, t int) *int {
+		if sum == nil {
+			sum = new(int)
+			*sum = 0
+		}
+		v := *sum + t
+		return &v
+	}, Default(&d))(slice1)
+	assert.Equal(t, *sum, *sum3)
+
 	slice2 := []V4sum{
 		{1}, {2},
 	}
