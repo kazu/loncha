@@ -4,6 +4,8 @@ import "reflect"
 
 type CondFunc2[T any] func(t *T) bool
 
+type CondFuncWithIndex[T any] func(i int, t *T) bool
+
 // FilterOpt ... functional option for FIlter2()
 type FilterOpt[T any] struct {
 	isDestructive bool

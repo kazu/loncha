@@ -88,7 +88,34 @@ func Containable[T comparable](fn CondFunc2[T]) func([]T) bool {
 		}
 		return false
 	}
+}
 
+// Every ... Determines whether all the members of an array satisfy the specified test.
+func Every[T comparable](fn CondFunc2[T]) func([]T) bool {
+
+	return func(srcs []T) bool {
+		result := true
+		for _, src := range srcs {
+			if result && !fn(&src) {
+				result = false
+			}
+		}
+		return result
+	}
+}
+
+// EveryWithIndex ... Determines whether all the members of an array satisfy the specified test.
+func EveryWithIndex[T comparable](fn CondFuncWithIndex[T]) func([]T) bool {
+
+	return func(srcs []T) bool {
+		result := true
+		for i, src := range srcs {
+			if result && !fn(i, &src) {
+				result = false
+			}
+		}
+		return result
+	}
 }
 
 // Convertable ...  generate function of slice conversion.

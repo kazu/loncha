@@ -529,6 +529,31 @@ func TestContain(t *testing.T) {
 
 }
 
+func TestEvery(t *testing.T) {
+	slice1 := []int{10, 6, 4, 2}
+
+	assert.True(t,
+		Every(func(v *int) bool {
+			*v = +1
+			return true
+		})(slice1))
+
+	assert.False(t,
+		Every(func(v *int) bool {
+			*v++
+			if *v == 5 {
+				return false
+			}
+			return true
+		})(slice1))
+	assert.True(t,
+		EveryWithIndex(func(i int, v *int) bool {
+			*v = +1
+			return true
+		})(slice1))
+
+}
+
 func Sort[T Ordered](s []T) []T {
 
 	sort.Slice(s, func(i, j int) bool {
