@@ -4,6 +4,12 @@ import "reflect"
 
 type CondFunc2[T any] func(t *T) bool
 
+type CondFunc3[T any] func(t T) bool
+
+type CondFuncWithPtr[T any] interface {
+	CondFunc2[T] | CondFunc3[T]
+}
+
 type CondFuncWithIndex[T any] func(i int, t *T) bool
 
 // FilterOpt ... functional option for FIlter2()

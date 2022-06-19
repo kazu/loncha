@@ -512,6 +512,16 @@ func TestInject(t *testing.T) {
 
 }
 
+func TestGettable(t *testing.T) {
+
+	slice1 := []int{10, 6, 4, 2}
+
+	r := Gettable(func(v *int) bool { return *v == 4 })(slice1)
+
+	assert.Equal(t, 4, r)
+
+}
+
 func TestConv(t *testing.T) {
 	slice1 := []int{10, 6, 4, 2}
 
@@ -549,7 +559,7 @@ func TestEvery(t *testing.T) {
 		Every(func(v *int) bool {
 			*v = +1
 			return true
-		})(slice1))
+		})(slice1...))
 
 	assert.False(t,
 		Every(func(v *int) bool {
@@ -558,12 +568,12 @@ func TestEvery(t *testing.T) {
 				return false
 			}
 			return true
-		})(slice1))
+		})(slice1...))
 	assert.True(t,
 		EveryWithIndex(func(i int, v *int) bool {
 			*v = +1
 			return true
-		})(slice1))
+		})(slice1...))
 
 }
 
