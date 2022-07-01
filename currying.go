@@ -104,7 +104,7 @@ func Containable[T comparable](fn CondFunc2[T]) func([]T) bool {
 }
 
 // Every ... Determines whether all the members of an array satisfy the specified test.
-func Every[T comparable](fn CondFunc2[T]) func(...T) bool {
+func Every[T any](fn CondFunc2[T]) func(...T) bool {
 
 	return func(srcs ...T) bool {
 		result := true
