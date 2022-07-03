@@ -490,12 +490,35 @@ func TestInject(t *testing.T) {
 	})(slice1)
 	assert.Equal(t, *sum, *sum2)
 
+	d := int(0)
+	_ = d
+
+	sum3 := Reducable(func(sum *int, t int) *int {
+		if sum == nil {
+			sum = new(int)
+			*sum = 0
+		}
+		v := *sum + t
+		return &v
+	}, Default(&d))(slice1)
+	assert.Equal(t, *sum, *sum3)
+
 	slice2 := []V4sum{
 		{1}, {2},
 	}
 
 	sumFns := SumWithFn(slice2, func(a V4sum) int { return a.A })
 	assert.Equal(t, sumFns, 3)
+
+}
+
+func TestGettable(t *testing.T) {
+
+	slice1 := []int{10, 6, 4, 2}
+
+	r := Gettable(func(v *int) bool { return *v == 4 })(slice1)
+
+	assert.Equal(t, 4, r)
 
 }
 
@@ -526,6 +549,31 @@ func TestContain(t *testing.T) {
 
 	assert.True(t,
 		Contain(slice1, func(i int) bool { return slice1[i] == 6 }))
+
+}
+
+func TestEvery(t *testing.T) {
+	slice1 := []int{10, 6, 4, 2}
+
+	assert.True(t,
+		Every(func(v *int) bool {
+			*v = +1
+			return true
+		})(slice1...))
+
+	assert.False(t,
+		Every(func(v *int) bool {
+			*v++
+			if *v == 5 {
+				return false
+			}
+			return true
+		})(slice1...))
+	assert.True(t,
+		EveryWithIndex(func(i int, v *int) bool {
+			*v = +1
+			return true
+		})(slice1...))
 
 }
 

@@ -4,8 +4,11 @@ package loncha
 type InjectFn[T any, R any] func(R, T) R
 
 // Inject ... return an object formed from operands via InjectFn
-func Inject[T any, V any](s []T, injectFn InjectFn[T, V]) (v V) {
-
+func Inject[T any, V any](s []T, injectFn InjectFn[T, V], opts ...OptCurry[V]) (v V) {
+	if len(opts) > 0 {
+		p := NewOpt(opts...)
+		v = p.Default
+	}
 	for _, t := range s {
 		v = injectFn(v, t)
 	}
