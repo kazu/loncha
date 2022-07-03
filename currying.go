@@ -145,6 +145,21 @@ func Convertable[S, D any](fn ConvFunc[S, D]) func([]S) []D {
 	}
 }
 
+// ConvFunKeep ... CondFunc wihtout checking keep
+type ConvFunKeep[T any, S any] func(T) S
+
+// ConvertableKeep ...  generate function of slice conversion.keep all value in slice
+func ConvertableKeep[S, D any](fn ConvFunKeep[S, D]) func(...S) []D {
+	return func(srcs ...S) (dsts []D) {
+		dsts = []D{}
+
+		for _, src := range srcs {
+			dsts = append(dsts, fn(src))
+		}
+		return
+	}
+}
+
 // Number ... Number constraints
 type Number interface {
 	constraints.Integer | constraints.Float
