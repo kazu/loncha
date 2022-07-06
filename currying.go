@@ -46,7 +46,7 @@ func Filterable[T any](fns ...CondFunc2[T]) FilterFunc[T] {
 }
 
 // Deletable ... generate deleting function by fns Condition for slice
-func Deletable[T comparable](fns ...CondFunc2[T]) FilterFunc[T] {
+func Deletable[T any](fns ...CondFunc2[T]) FilterFunc[T] {
 	return innerfilterlable(false, fns...)
 }
 
