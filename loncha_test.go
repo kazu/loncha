@@ -532,6 +532,15 @@ func TestConv(t *testing.T) {
 
 	assert.Equal(t, slice1[0]+100, int(int64s[0]))
 
+	slice1 = []int{10, 6, 4, 2}
+
+	int64s = ConvertableKeep(
+		func(i int) int64 {
+			return int64(100 + i)
+		})(slice1...)
+
+	assert.Equal(t, slice1[0]+100, int(int64s[0]))
+
 }
 
 func has[T comparable](a T) func(e *T) bool {

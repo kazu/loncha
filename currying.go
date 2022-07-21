@@ -46,7 +46,7 @@ func Filterable[T any](fns ...CondFunc2[T]) FilterFunc[T] {
 }
 
 // Deletable ... generate deleting function by fns Condition for slice
-func Deletable[T comparable](fns ...CondFunc2[T]) FilterFunc[T] {
+func Deletable[T any](fns ...CondFunc2[T]) FilterFunc[T] {
 	return innerfilterlable(false, fns...)
 }
 
@@ -91,7 +91,7 @@ func Reducable[T any, V any](injectFn InjectFn[T, V], opts ...OptCurry[V]) Injec
 }
 
 // Containable ... generate function of slice contain.
-func Containable[T comparable](fn CondFunc2[T]) func([]T) bool {
+func Containable[T any](fn CondFunc2[T]) func([]T) bool {
 
 	return func(srcs []T) bool {
 		for _, src := range srcs {
@@ -145,6 +145,21 @@ func Convertable[S, D any](fn ConvFunc[S, D]) func([]S) []D {
 	}
 }
 
+// ConvFunKeep ... CondFunc wihtout checking keep
+type ConvFunKeep[T any, S any] func(T) S
+
+// ConvertableKeep ...  generate function of slice conversion.keep all value in slice
+func ConvertableKeep[S, D any](fn ConvFunKeep[S, D]) func(...S) []D {
+	return func(srcs ...S) (dsts []D) {
+		dsts = []D{}
+
+		for _, src := range srcs {
+			dsts = append(dsts, fn(src))
+		}
+		return
+	}
+}
+
 // Number ... Number constraints
 type Number interface {
 	constraints.Integer | constraints.Float
@@ -177,7 +192,7 @@ func Zipper[T, S, R any](fn func(R, T, S) R, start R) func([]T, []S) R {
 }
 
 // ToMap ... function for Zipper . return map from double array.
-func ToMap[K, V constraints.Ordered](r map[K]V, k K, v V) map[K]V {
+func ToMap[K constraints.Ordered, V any](r map[K]V, k K, v V) map[K]V {
 
 	r[k] = v
 	return r
