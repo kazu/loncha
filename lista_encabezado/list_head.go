@@ -800,8 +800,8 @@ var mu4Add *mutex = newMutex(false)
 //   prev --> next     prev ---> new
 func listAddWitCas(new, prev, next *ListHead, fn func(*ListHead) *sync.RWMutex) (err error) {
 	// backup for roolback
-	oNewPrev := uintptr(unsafe.Pointer(new.prev))
-	oNewNext := uintptr(unsafe.Pointer(new.next))
+	oNewPrev := new.prev
+	oNewNext := new.next
 	if fn != nil {
 		if !prev.Empty() {
 			fn(prev).Lock()
@@ -813,8 +813,8 @@ func listAddWitCas(new, prev, next *ListHead, fn func(*ListHead) *sync.RWMutex) 
 		}
 	}
 	rollback := func(new *ListHead) {
-		StoreListHead(&new.prev, (*ListHead)(unsafe.Pointer(oNewPrev)))
-		StoreListHead(&new.next, (*ListHead)(unsafe.Pointer(oNewNext)))
+		StoreListHead(&new.prev, oNewPrev)
+		StoreListHead(&new.next, oNewNext)
 	}
 	_ = rollback
 
