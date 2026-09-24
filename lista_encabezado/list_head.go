@@ -1165,7 +1165,7 @@ func (l *ListHead) Delete() (result *ListHead) {
 
 func (l *ListHead) Empty() bool {
 	if MODE_CONCURRENT {
-		return l.prev == l || l.next == l
+		return prevLoad(l) == l || nextLoad(l) == l
 	}
 	return l.next == l
 }
@@ -1293,17 +1293,17 @@ func (l *ListHead) frontCc() (head *ListHead) {
 	defer func() {
 		retryed := false
 	RETRY:
-		if head.prev == head && head.next != head {
+		if prevLoad(head) == head && nextLoad(head) != head {
 			if retryed {
 				// FIXME: log warning
 				//fmt.Printf("start terminate? head.next.Empty()=%v\n", head.next.Empty())
 				_ = "head empty"
 			}
-			head = head.next
+			head = nextLoad(head)
 			retryed = true
 			goto RETRY
 		}
-		if head.prev != head && head.next == head {
+		if prevLoad(head) != head && nextLoad(head) == head {
 			_ = "end terminate?"
 			return
 		}
