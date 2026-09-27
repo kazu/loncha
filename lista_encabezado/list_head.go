@@ -265,6 +265,9 @@ func InitAfterSafety(retry int) func(*ListHead) error {
 
 }
 
+// prevLoad and nextLoad load a link as it is, with the mark bit of a delete.
+//
+//go:nocheckptr
 func prevLoad(head *ListHead) (prev *ListHead) {
 	prev = (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
 	return prev
@@ -498,6 +501,7 @@ func nextDirect(head *ListHead) (next *ListHead) {
 	return nodeNext(head)
 }
 
+//go:nocheckptr
 func nextLoad(head *ListHead) (next *ListHead) {
 	next = (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next))))
 	return next
