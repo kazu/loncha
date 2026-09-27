@@ -134,11 +134,13 @@ func (head *ListHead) Init() {
 
 	start := NewEmpty()
 	end := NewEmpty()
-	head.prev = start
-	head.next = end
-
 	start.next = head
 	end.prev = head
+
+	// a reader may still load the links of head, as a Get of an item pool
+	// does while an expand runs Init on the old pool
+	StoreListHead(&head.prev, start)
+	StoreListHead(&head.next, end)
 }
 
 func (head *ListHead) InitAsEmpty() {
