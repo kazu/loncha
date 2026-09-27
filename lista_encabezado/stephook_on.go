@@ -15,7 +15,7 @@ import "sync/atomic"
 //   - "add.cas2" (new, prev, next): prev.next is new; before next.prev is
 //     changed.
 //   - "add.rollback" (new, prev, next): next.prev was not changed; before
-//     prev.next is put back.
+//     new is taken out with MarkForDelete and left marked.
 //   - "del.purgeable" (node, nil, nil): canPurge of MarkForDelete has read the
 //     links of node and found them linking to other nodes; before the
 //     neighbors of node are read.
