@@ -145,6 +145,33 @@ func (head *ListHead) InsertBefore(new *ListHead, opts ...TravOpt) (*ListHead, e
 
 }
 
+// TryInsertBefore links new just before head in one attempt, as
+// TryInsertBefore of elist_head does: it reads the node before head once and
+// links new there only if accept returns true for that node. It returns an
+// error without linking new when head is marked, is not linked to a previous
+// node, is rejected by accept, or when another goroutine changed the links
+// first; the caller finds the position again.
+func (head *ListHead) TryInsertBefore(new *ListHead, accept func(prev *ListHead) bool) error {
+
+	if new.IsMarked() {
+		initAfterSafety(new)
+	}
+	if head.isMarkedForDeleteWithoutError() {
+		return ErrMarked
+	}
+	stepAt("insert.begin", new, nil, head)
+
+	prev := prevLoad(head)
+	// the mark on head.prev belongs to a delete of head
+	if uintptr(unsafe.Pointer(prev))&1 != 0 {
+		return ErrMarked
+	}
+	if prev == head || !accept(prev) {
+		return ErrNotAppend
+	}
+	return listAddWitCas(toNode(new), prev, head, nil)
+}
+
 func (head *ListHead) append(new *ListHead) (*ListHead, error) {
 	if !MODE_CONCURRENT {
 		head.add(new)
