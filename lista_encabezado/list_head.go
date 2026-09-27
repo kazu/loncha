@@ -270,8 +270,9 @@ func prevLoad(head *ListHead) (prev *ListHead) {
 	return prev
 }
 
+// prevDirect returns the node head.prev leads to, without the mark bit.
 func prevDirect(head *ListHead) (prev *ListHead) {
-	return prevLoad(head)
+	return nodePrev(head)
 }
 
 func prevWaitNoMark(head *ListHead) (prev *ListHead) {
@@ -316,6 +317,20 @@ func prevSkipMark(head *ListHead) (prev *ListHead) {
 	return prev
 }
 
+// traverseType returns the traverse type of one Prev or Next call: the type
+// of DefaultModeTraverse changed by opts. opts apply to a copy, so that
+// calls running at the same time do not take the options of each other.
+func traverseType(opts []TravOpt) TraverseType {
+	if len(opts) == 0 {
+		return DefaultModeTraverse.Type()
+	}
+	mode := ModeTraverse{t: DefaultModeTraverse.Type()}
+	for _, opt := range opts {
+		opt(&mode)
+	}
+	return mode.Type()
+}
+
 func (head *ListHead) Prev(opts ...TravOpt) *ListHead {
 	//return ListPrev(head, opts...)
 	return ListPrev(head, opts...)
@@ -327,12 +342,7 @@ func ListPrev(head *ListHead, opts ...TravOpt) (prev *ListHead) {
 	// }
 	// return prevDefault(head, opts...)
 
-	if len(opts) > 0 {
-		pOpts := DefaultModeTraverse.Option(opts...)
-		defer DefaultModeTraverse.Option(pOpts...)
-	}
-
-	switch DefaultModeTraverse.Type() {
+	switch traverseType(opts) {
 	case TravDirect:
 		return prevDirect(head)
 	case TravWaitNoMark:
@@ -482,8 +492,10 @@ func (head *ListHead) rewriteResultOnPrev(mode ModeTraverse, prev *ListHead, oex
 	return oexit, oerr
 }
 
+// nextDirect returns the node head.next leads to, without the mark bit that
+// a delete of head puts on the link, as nextDirect of elist_head does.
 func nextDirect(head *ListHead) (next *ListHead) {
-	return nextLoad(head)
+	return nodeNext(head)
 }
 
 func nextLoad(head *ListHead) (next *ListHead) {
@@ -538,12 +550,7 @@ func (head *ListHead) Next(opts ...TravOpt) *ListHead {
 }
 
 func ListNext(head *ListHead, opts ...TravOpt) *ListHead {
-	if len(opts) > 0 {
-		prevs := DefaultModeTraverse.Option(opts...)
-		defer DefaultModeTraverse.Option(prevs...)
-	}
-
-	switch DefaultModeTraverse.Type() {
+	switch traverseType(opts) {
 	case TravDirect:
 		return nextDirect(head)
 	case TravWaitNoMark:
@@ -840,13 +847,14 @@ func listAddWitCas(new, prev, next *ListHead, fn func(*ListHead) *sync.RWMutex) 
 
 		stepAt("add.rollback", new, prev, next)
 		// take new out as a delete of new does, so that a delete of next
-		// that passed over the link from prev to new sees it removed
+		// that passed over the link from prev to new sees it removed. new
+		// keeps its marked links like any deleted node, so that the nodes
+		// next to it are not taken as safe to reuse through it
 		if err := new.MarkForDelete(); err != nil {
 			return err
 		}
-
-		goto ROLLBACK
-
+		return NewError(ErrTCasConflictOnAdd,
+			fmt.Errorf("listAddWithCas() please retry: new=%s prev=%s next=%s", new.P(), prev.P(), next.P()))
 	}
 
 	return nil
@@ -1294,6 +1302,13 @@ func (l *ListHead) front() (head *ListHead) {
 	return
 }
 
+// frontPrev returns the nearest node before head that is not marked, for the
+// walk of frontCc.
+func frontPrev(head *ListHead) *ListHead {
+	stepAt("front.prev", head, nil, nil)
+	return PrevNoM(prevLoad(head))
+}
+
 func (l *ListHead) frontCc() (head *ListHead) {
 
 	defer func() {
@@ -1334,7 +1349,9 @@ func (l *ListHead) frontCc() (head *ListHead) {
 	_ = next
 
 	isInfinit := map[*ListHead]int{}
-	for head, next = start, start; !head.Prev(WaitNoM()).Empty(); next, head = head, head.Prev(WaitNoM()) {
+	// walk over the nodes being deleted instead of waiting for them, which
+	// gives up with nil after 100 reads
+	for head, next = start, start; !frontPrev(head).Empty(); next, head = head, frontPrev(head) {
 		if head.IsMarked() {
 			retry = 2
 			head = next

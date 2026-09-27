@@ -99,13 +99,7 @@ func (head *ListHead) AppendWithRecover(new *ListHead) (nHead *ListHead, err err
 func (head *ListHead) Append(new *ListHead) (*ListHead, error) {
 
 	if new.IsMarked() {
-		// a delete next to new may still link to it for a while after new
-		// is deleted; wait for it as a delete waits for an insert
-		retryUntilDone(func(retry int) (bool, error) {
-			ok, _ := new.IsSafety()
-			return ok, nil
-		})
-		new.Init()
+		initAfterSafety(new)
 	}
 
 	nlast, err := head.append(new)
@@ -119,13 +113,7 @@ func (head *ListHead) Append(new *ListHead) (*ListHead, error) {
 func (head *ListHead) InsertBefore(new *ListHead, opts ...TravOpt) (*ListHead, error) {
 
 	if new.IsMarked() {
-		// a delete next to new may still link to it for a while after new
-		// is deleted; wait for it as a delete waits for an insert
-		retryUntilDone(func(retry int) (bool, error) {
-			ok, _ := new.IsSafety()
-			return ok, nil
-		})
-		new.Init()
+		initAfterSafety(new)
 	}
 
 	// nlast, err := head.append(new)
@@ -232,6 +220,18 @@ func retryUntilDone(fn func(retry int) (done bool, err error)) error {
 	}
 }
 
+// initAfterSafety waits until no node of the list links to the deleted node
+// n any more, and Inits n for another insert. A delete next to n may still
+// link to it for a while after n is deleted; this waits for it as a delete
+// waits for an insert.
+func initAfterSafety(n *ListHead) {
+	retryUntilDone(func(retry int) (bool, error) {
+		ok, _ := n.IsSafety()
+		return ok, nil
+	})
+	n.Init()
+}
+
 func (head *ListHead) add(new *ListHead, opts ...TravOpt) error {
 	if MODE_CONCURRENT {
 		//retry := 0
@@ -252,6 +252,10 @@ func (head *ListHead) add(new *ListHead, opts ...TravOpt) error {
 			}
 			if next == head {
 				return true, ErrNotAppend
+			}
+			// a try rolled back by a delete next to it leaves new deleted
+			if new.IsMarked() {
+				initAfterSafety(new)
 			}
 			err = listAddWitCas(new,
 				prev,
@@ -294,6 +298,10 @@ func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) error {
 			}
 			if prev == head {
 				return true, ErrNotAppend
+			}
+			// a try rolled back by a delete next to it leaves new deleted
+			if new.IsMarked() {
+				initAfterSafety(new)
 			}
 			err = listAddWitCas(new,
 				prev,

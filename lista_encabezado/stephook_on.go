@@ -29,8 +29,9 @@ import "sync/atomic"
 //     of node; before the CAS.
 //   - "del.check" (node, prev, next): the links to node are changed; before
 //     they are checked.
-//   - "prev.waitNoMark" (node, nil, nil): Prev in the WaitNoMark mode, with
-//     DefaultModeTraverse already switched by the options of the call; before
+//   - "prev.waitNoMark" (node, nil, nil): Prev in the WaitNoMark mode; before
+//     node.prev is read.
+//   - "front.prev" (node, nil, nil): the walk of Front back from node; before
 //     node.prev is read.
 //   - "safety.nodes" (node, prev, next): IsSafety of node has taken prev and
 //     next, the nodes whose links it checks; before it checks them.
