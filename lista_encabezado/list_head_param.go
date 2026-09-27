@@ -9,6 +9,7 @@ package list_head
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -98,11 +99,13 @@ func (head *ListHead) AppendWithRecover(new *ListHead) (nHead *ListHead, err err
 func (head *ListHead) Append(new *ListHead) (*ListHead, error) {
 
 	if new.IsMarked() {
-		if ok, _ := new.IsSafety(); ok {
-			new.Init()
-		} else {
-			return head, ErrNoSafetyOnAdd
-		}
+		// a delete next to new may still link to it for a while after new
+		// is deleted; wait for it as a delete waits for an insert
+		retryUntilDone(func(retry int) (bool, error) {
+			ok, _ := new.IsSafety()
+			return ok, nil
+		})
+		new.Init()
 	}
 
 	nlast, err := head.append(new)
@@ -116,11 +119,13 @@ func (head *ListHead) Append(new *ListHead) (*ListHead, error) {
 func (head *ListHead) InsertBefore(new *ListHead, opts ...TravOpt) (*ListHead, error) {
 
 	if new.IsMarked() {
-		if ok, _ := new.IsSafety(); ok {
-			new.Init()
-		} else {
-			return head, ErrNoSafetyOnAdd
-		}
+		// a delete next to new may still link to it for a while after new
+		// is deleted; wait for it as a delete waits for an insert
+		retryUntilDone(func(retry int) (bool, error) {
+			ok, _ := new.IsSafety()
+			return ok, nil
+		})
+		new.Init()
 	}
 
 	// nlast, err := head.append(new)
@@ -136,6 +141,7 @@ func (head *ListHead) InsertBefore(new *ListHead, opts ...TravOpt) (*ListHead, e
 	if head.isMarkedForDeleteWithoutError() {
 		return head, ErrMarked
 	}
+	stepAt("insert.begin", new, nil, head)
 
 	// if head.prev.isMarkedForDeleteWithoutError() {
 	// 	return head, ErrMarked
@@ -144,7 +150,9 @@ func (head *ListHead) InsertBefore(new *ListHead, opts ...TravOpt) (*ListHead, e
 	// 	return head, ErrNotAppend
 	// }
 	nNode := toNode(new)
-	head.insertBefore(nNode, opts...)
+	if err := head.insertBefore(nNode, opts...); err != nil {
+		return head, err
+	}
 	return head, nil
 
 }
@@ -163,7 +171,9 @@ func (head *ListHead) append(new *ListHead) (*ListHead, error) {
 	}
 
 	nNode := toNode(new)
-	head.add(nNode)
+	if err := head.add(nNode); err != nil {
+		return head, err
+	}
 
 	return head, nil
 }
@@ -208,7 +218,21 @@ func (head *ListHead) isNext(next *ListHead) bool {
 
 }
 
-func (head *ListHead) add(new *ListHead, opts ...TravOpt) {
+// retryUntilDone calls fn until it reports done, yielding between the tries.
+// A CAS of an insert fails only when another insert or delete changed the
+// links first, so the list as a whole moves on while one insert retries.
+func retryUntilDone(fn func(retry int) (done bool, err error)) error {
+	for r := 0; ; r++ {
+		if r > 0 {
+			runtime.Gosched()
+		}
+		if done, err := fn(r); done {
+			return err
+		}
+	}
+}
+
+func (head *ListHead) add(new *ListHead, opts ...TravOpt) error {
 	if MODE_CONCURRENT {
 		//retry := 0
 		var err error
@@ -221,7 +245,14 @@ func (head *ListHead) add(new *ListHead, opts ...TravOpt) {
 		}
 		prev := head
 		next := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.next))))
-		err = retry(100, func(retry int) (finish bool, err error) {
+		err = retryUntilDone(func(retry int) (finish bool, err error) {
+			// the mark on head.next belongs to a delete of head
+			if uintptr(unsafe.Pointer(next))&1 != 0 {
+				return true, ErrMarked
+			}
+			if next == head {
+				return true, ErrNotAppend
+			}
 			err = listAddWitCas(new,
 				prev,
 				next, mode.Mu)
@@ -234,16 +265,13 @@ func (head *ListHead) add(new *ListHead, opts ...TravOpt) {
 			return false, err
 		})
 
-		if err != nil {
-			fmt.Printf("add(): over retry retry=%d err=%s\n", 100, err.Error())
-		}
-
-		return
+		return err
 	}
 	listAdd(new, head, head.next)
+	return nil
 }
 
-func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) {
+func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) error {
 	if MODE_CONCURRENT {
 		//retry := 0
 		var err error
@@ -259,7 +287,14 @@ func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) {
 
 		next := head
 		prev := (*ListHead)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&head.prev))))
-		err = retry(100, func(retry int) (finish bool, err error) {
+		err = retryUntilDone(func(retry int) (finish bool, err error) {
+			// the mark on head.prev belongs to a delete of head
+			if uintptr(unsafe.Pointer(prev))&1 != 0 || head.isMarkedForDeleteWithoutError() {
+				return true, ErrMarked
+			}
+			if prev == head {
+				return true, ErrNotAppend
+			}
 			err = listAddWitCas(new,
 				prev,
 				next, mode.Mu)
@@ -277,9 +312,10 @@ func (head *ListHead) insertBefore(new *ListHead, opts ...TravOpt) {
 			mode.e = err
 		}
 
-		return
+		return err
 	}
 	listAdd(new, head.prev, head)
+	return nil
 }
 
 func (head *ListHead) Join(new *ListHead) {
@@ -404,12 +440,19 @@ func StoreListHead(dst **ListHead, src *ListHead) {
 }
 
 //go:nocheckptr
+// MarkListHead sets the mark bit of the link at target only while the link
+// still holds old. It also succeeds when the link already holds old with the
+// mark bit, so that a retried delete can mark the same link again.
 func MarkListHead(target **ListHead, old *ListHead) bool {
 
 	//mask := uintptr(^uint(0)) ^ 1
-	return atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(target)),
-		unsafe.Pointer(uintptr(unsafe.Pointer(*target))),
-		unsafe.Pointer(uintptr(unsafe.Pointer(old))|1))
+	marked := unsafe.Pointer(uintptr(unsafe.Pointer(old)) | 1)
+	if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(target)),
+		unsafe.Pointer(old),
+		marked) {
+		return true
+	}
+	return atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(target))) == marked
 
 }
 
