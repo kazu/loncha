@@ -9,6 +9,7 @@ import "sync/atomic"
 // there and replay a concurrent interleaving one step at a time.
 //
 // Points and arguments:
+//   - "len.current" (node, nil, nil): Len selected node, before checking its mark.
 //   - "insert.begin" (new, nil, next): InsertBefore is called in
 //     MODE_CONCURRENT and next is not marked.
 //   - "add.cas1" (new, prev, next): before prev.next is changed to new.

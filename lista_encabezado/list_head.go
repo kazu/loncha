@@ -761,7 +761,7 @@ func (head *ListHead) next3() (next *ListHead, err error) {
 	if unsafe.Pointer(head) == headNext {
 		return nil, ErrEmpty
 	}
-	if unsafe.Pointer(head) == unsafe.Pointer(uintptr(headNext)^1) {
+	if uintptr(unsafe.Pointer(head)) == uintptr(headNext)^1 {
 		return nil, ErrMarked
 	}
 	if (*ListHead)(headNext).isMarkedForDeleteWithoutError() {
@@ -818,13 +818,14 @@ func (mu *mutex) Unlock() {
 
 var mu4Add *mutex = newMutex(false)
 
-//  prev ---------------> next
-//        \--> new --/
-//   prev --> next     prev ---> new
+// prev ---------------> next
+//
+//	     \--> new --/
+//	prev --> next     prev ---> new
 func listAddWitCas(new, prev, next *ListHead, fn func(*ListHead) *sync.RWMutex) (err error) {
 	// backup for roolback
-	oNewPrev := new.prev
-	oNewNext := new.next
+	oNewPrev := prevLoad(new)
+	oNewNext := nextLoad(new)
 	if fn != nil {
 		if !prev.Empty() {
 			fn(prev).Lock()
@@ -1239,18 +1240,18 @@ func (l *ListHead) lenCc() (cnt int) {
 	retry := false
 	_ = retry
 RETRY:
+	cnt = 0
 	loopDetect = map[*ListHead]bool{}
 	for cur := l.Front(); !cur.Empty(); cur = cur.Next() {
-	EACH_RETRY:
 		if loopDetect[cur] {
 			fmt.Printf("loop")
 			retry = true
 			goto RETRY
 		}
 		loopDetect[cur] = true
-		if uintptr(unsafe.Pointer(cur.next))&1 > 0 {
-			loopDetect[cur] = false
-			goto EACH_RETRY
+		stepAt("len.current", cur, nil, nil)
+		if uintptr(unsafe.Pointer(nextLoad(cur)))&1 > 0 {
+			goto RETRY
 		}
 
 		cnt++
@@ -1692,11 +1693,11 @@ func (head *ListHead) ActiveList() *ListHead {
 
 func (head *ListHead) canPurge() bool {
 
-	if head.prev == head {
+	if prevLoad(head) == head {
 		return false
 	}
 
-	if head.next == head {
+	if nextLoad(head) == head {
 		return false
 	}
 	return true
@@ -1704,7 +1705,7 @@ func (head *ListHead) canPurge() bool {
 
 func (head *ListHead) canAdd() bool {
 
-	if head.next == head {
+	if head.DirectNext() == head {
 		return false
 	}
 	return true

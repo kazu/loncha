@@ -118,7 +118,7 @@ func (m *RMap) getDirtyEntry(k, conflict uint64) (e *entryRmap) {
 	// 	return false
 	// })
 	m.traverseDirty(nil, keySearch2(k), func(dst, node *ListHead) {
-		if dst != nil {
+		if dst != nil && !dst.Empty() {
 			e = entryRmapFromListHead(dst)
 		}
 	})
@@ -471,14 +471,14 @@ func (m *RMap) traverseDirty(e *entryRmap, cond func(*ListHead) bool, success fu
 // 			break
 // 		}
 
-// 		for cur := slist.start.Next(WaitNoM()); !cur.Empty(); cur = cur.Next(Lock(MutexFn)) {
-// 			if cond(cur) {
-// 				onSuccess(cur.Next(Lock(MutexFn)), e)
-// 				return
-// 			}
-// 		}
-// 	}
-// }
+//			for cur := slist.start.Next(WaitNoM()); !cur.Empty(); cur = cur.Next(Lock(MutexFn)) {
+//				if cond(cur) {
+//					onSuccess(cur.Next(Lock(MutexFn)), e)
+//					return
+//				}
+//			}
+//		}
+//	}
 func (m *RMap) isNotRestoreRead() bool {
 
 	read := m.read.Load().(*readMap)

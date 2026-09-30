@@ -105,14 +105,14 @@ type syncMap struct {
 	m sync.Map
 }
 
-func (m syncMap) Get(k string) (v *list_head.ListHead, ok bool) {
+func (m *syncMap) Get(k string) (v *list_head.ListHead, ok bool) {
 
 	ov, ok := m.m.Load(k)
 	v, ok = ov.(*list_head.ListHead)
 	return
 }
 
-func (m syncMap) Set(k string, v *list_head.ListHead) (ok bool) {
+func (m *syncMap) Set(k string, v *list_head.ListHead) (ok bool) {
 
 	m.m.Store(k, v)
 	return true
@@ -140,7 +140,7 @@ func Benchmark_Map(b *testing.B) {
 		// {"MapString          ", 100, 100000, 0, &list_head.MapString{}},
 		{"RMap               ", 100, 100000, 0, list_head.NewRMap()},
 		//{"RMap2              ", 100, 100000, 0, list_head.NewRMap2()},
-		{"sync.Map           ", 100, 100000, 0, syncMap{}},
+		{"sync.Map           ", 100, 100000, 0, &syncMap{}},
 		// // {"WithLock           ", 100, 100000, 10, &list_head.MapWithLock{}},
 		// // {"Map                ", 100, 100000, 10, &list_head.Map{}},
 		// // {"MapString          ", 100, 100000, 10, &list_head.MapString{}},

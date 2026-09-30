@@ -31,7 +31,8 @@ func ElementOf(l List, head *ListHead) unsafe.Pointer {
 }
 
 // Add ... Add list
-//     support lista_encabezado
+//
+//	support lista_encabezado
 func (head *ListHead) AddElement(nList List) *ListHead {
 	n := nList.PtrListHead()
 	head.Add(n)
@@ -39,10 +40,10 @@ func (head *ListHead) AddElement(nList List) *ListHead {
 }
 
 func toNode(head *ListHead) *ListHead {
-	if head.prev == head {
+	if prevLoad(head) == head {
 		return head.Next()
 	}
-	if head.next == head {
+	if nextLoad(head) == head {
 		return head.Prev()
 	}
 	return head
@@ -435,7 +436,7 @@ func (head *ListHead) deleteWithCas(prev *ListHead) (err error) {
 
 }
 
-//func ContainOf(head, elm *ListHead) bool {
+// func ContainOf(head, elm *ListHead) bool {
 func ElementIsContainOf(hList, l List) bool {
 	return ContainOf(hList.PtrListHead(), l.PtrListHead())
 }
@@ -474,10 +475,11 @@ func StoreListHead(dst **ListHead, src *ListHead) {
 		unsafe.Pointer(src))
 }
 
-//go:nocheckptr
 // MarkListHead sets the mark bit of the link at target only while the link
 // still holds old. It also succeeds when the link already holds old with the
 // mark bit, so that a retried delete can mark the same link again.
+//
+//go:nocheckptr
 func MarkListHead(target **ListHead, old *ListHead) bool {
 
 	//mask := uintptr(^uint(0)) ^ 1

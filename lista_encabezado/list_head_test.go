@@ -729,7 +729,7 @@ func TestRaceCondtion(t *testing.T) {
 				if atomic.CompareAndSwapPointer(
 					(*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
 					unsafe.Pointer(e.DirectNext()),
-					unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1)) {
+					unsafe.Add(unsafe.Pointer(e.DirectNext()), 1)) {
 					fmt.Printf("success %d\n", i)
 				}
 			},
@@ -748,7 +748,7 @@ func TestRaceCondtion(t *testing.T) {
 			},
 			writer: func(i int, e *list_head.ListHead) {
 				atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(e.PtrNext())),
-					unsafe.Pointer(uintptr(unsafe.Pointer(e.DirectNext()))|1))
+					unsafe.Add(unsafe.Pointer(e.DirectNext()), 1))
 			},
 		},
 	}
@@ -862,8 +862,9 @@ func TestConcurrentLastAppend(t *testing.T) {
 	}
 
 	for i := 0; i < concurrent; i++ {
+		wg.Add(1)
 		go func(i int) {
-			wg.Add(1)
+			defer wg.Done()
 			elms := makeElems(cntPerRoutine)
 
 			for i := 0; i < cntPerRoutine; i++ {
@@ -875,7 +876,6 @@ func TestConcurrentLastAppend(t *testing.T) {
 				append(last, elms[i])
 			}
 
-			defer wg.Done()
 		}(i)
 	}
 	wg.Wait()
@@ -890,7 +890,6 @@ func TestConcurrentLastAppend(t *testing.T) {
 
 func TestConcurrentAddAndDelete(t *testing.T) {
 	list_head.MODE_CONCURRENT = true
-	var err error
 	const concurrent int = 100
 
 	head := &list_head.ListHead{}
@@ -914,8 +913,10 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 	_ = cond
 
 	for i := 0; i < concurrent; i++ {
-		go func(i int) {
-			wg.Add(1)
+		wg.Add(1)
+		go func(i int, head, other *list_head.ListHead) {
+			defer wg.Done()
+			var err error
 			e := &list_head.ListHead{}
 			e.Init()
 
@@ -942,10 +943,6 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			assert.NoError(t, err)
 
 			assert.True(t, head.IsFirst())
-
-			assert.Equalf(t, unsafe.Pointer(head), unsafe.Pointer(e.Front().Prev()),
-				"idx=%5d e.Front()=%s != head=%s e=%s head.Empty()=%v e.Front().Empty()=%v\n",
-				i, e.Front().P(), head.P(), e.P(), head.Empty(), e.Front().Empty())
 
 			if !list_head.ContainOf(head.Front(), e) {
 				t := list_head.ContainOf(head.Front(), e)
@@ -999,8 +996,8 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 				fmt.Printf("invalid increase? idx=%d before_len=%d after=%d \n", i, before_len, head.Len())
 			}
 			assert.False(t, list_head.ContainOf(head, e))
-			assert.Equal(t, e, e.Next())
-			assert.Equal(t, e, e.Prev())
+			assert.True(t, e.Next().Empty())
+			assert.True(t, e.Prev().Empty())
 
 			//cond()
 
@@ -1019,14 +1016,17 @@ func TestConcurrentAddAndDelete(t *testing.T) {
 			fmt.Printf("idx=%5d Move before_e=%s e=%s len(head)=%d len(other)=%d\n",
 				i, before_e, e.Pp(), head.Len(), other.Len())
 
-			wg.Done()
-		}(i)
+		}(i, head, other)
 
 	}
 	wg.Wait()
 
 	headF := head.Front()
 	_ = headF
+	// Check the pair after writers finish: an append may change Front's Prev
+	// between the two calls while the list is being updated.
+	assert.Same(t, head, head.Front().Prev())
+	assert.Same(t, other, other.Front().Prev())
 	assert.NoError(t, head.Front().Validate())
 	assert.NoError(t, other.Front().Validate())
 	assert.Equal(t, concurrent, other.Len())
@@ -1051,11 +1051,14 @@ func TestUnsafe(t *testing.T) {
 	b.a = &i
 	b2.a = &i
 	//b = nil
-	b.a = (*int)(unsafe.Pointer((uintptr(unsafe.Pointer(b.a)) ^ 1)))
+	marked := unsafe.Add(unsafe.Pointer(b.a), 1)
 
-	cc := uintptr(unsafe.Pointer(b.a))
+	cc := uintptr(marked)
 	_ = cc
-	fmt.Printf("cc=0x%x b.a=%d b2.a=%d\n", cc, *b.a, *b2.a)
-	assert.True(t, true)
+	assert.Equal(t, uintptr(unsafe.Pointer(b2.a))|1, cc)
+	// A marked pointer is only an encoded link; restore alignment before reading.
+	b.a = (*int)(unsafe.Add(marked, -1))
+	assert.Equal(t, b2.a, b.a)
+	assert.Equal(t, 4, *b.a)
 
 }
